@@ -3,180 +3,185 @@
 <!-- portfolio-status -->
 **Status:** Production-derived — merged from five repos I run against my own live agent workflows. · **Layer:** Execution controls · **[Portfolio map ›](https://github.com/kkrlstrm)**
 
-**Guards written from evidence, not imagination — and pruned when the evidence stops.**
+**Guardrails that earn their place.**
 
-Most agent guardrails are written by imagining what might go wrong. callusguard starts
-from what *has* gone wrong in your own runs: it records every tool call, mines the
-recurring failures into candidate rules, enforces the ones you promote, and verifies
-each run only touched what it said it would.
+callusguard turns repeated Claude Code and Codex failures into reviewed controls,
+enforces them where the agent acts, and verifies what the run actually changed.
 
-Claude Code and the OpenAI Codex CLI are both first-class throughout.
+A static policy encodes what you *feared*. callusguard encodes what your agents
+actually taught you — and proves whether a given run stayed inside the deal.
+
+---
+
+## The thing it does that nothing else does
+
+Every part of this exists somewhere. **The lifecycle does not.**
 
 ```
-   record  ─────►  derive  ─────►  guard  ─────►  wroteonly
-     │               │               │               │
-  every tool     recurring       enforce at      verify the run
-  call, with     failures →      the tool        stayed inside
-  exit codes     candidate       boundary        its declared
-                 rules                           write set
-     ▲                                                │
-     └────────────── what happened feeds the next rule ┘
+  a failure happens          →  recorded, with its exit code and error
+  it happens 3 more times    →  proposed as a rule, monitor-only, NOT armed
+  you review the evidence    →  promoted to nudge, or to a hard block
+  the workflow gets fixed    →  the rule stops firing
+  30 days quiet              →  flagged for pruning. deleting it is the tool working
 ```
 
-> **The loop is the product.** Recording without enforcement is a dashboard.
-> Enforcement without recording is a guess.
+That is `record → derive → guard → verify → prune`, and the last step is the one
+that makes the rest trustworthy. **A rule library that only grows is one nobody
+trusts** — every stale rule is latency on every tool call and noise in every review.
 
-## Why "callus"
+### One incident, end to end
 
-A callus is laid down by repeated friction, at exactly the site of the damage — and it
-**resolves when the friction is engineered away.** That is the rule lifecycle here, and
-it is the part most guardrail tooling gets backwards: a rule library that only grows is
-a library nobody trusts. Rules start as `monitor`, a human promotes them, and a guard
-that stops firing gets pruned.
+```console
+$ callus derive --from-log tool_calls.jsonl --out candidates.rules.json
+wrote 1 candidate rule(s) -> candidates.rules.json
+# derived-bash-psql-9c1c3e  action: monitor
+# "DRAFT — recurring Bash failure (3x in 7d): psql: error: connection to server..."
+```
 
-Shrinking is the tool working, not rotting.
+It lands as `monitor`. It does not block anything. You read it, decide it is real,
+promote it to `block` — and now:
+
+```console
+$ # the agent tries it again
+BLOCKED by agent-guard: Bare psql keeps failing here — pass a DSN.
+$ echo $?
+2
+```
+
+Six weeks later, after someone fixes the connection string for good:
+
+```console
+$ callus guard prune
+  ✂ PRUNE (1)
+      derived-bash-psql-9c1c3e   never fired in the last 30 days — either the failure
+                                 was engineered away, or the pattern never matched
+  1 rule(s) have stopped earning their place.
+  Deleting them is the tool working, not rotting.
+```
+
+### And the scope half
+
+The agent declares what it intends to touch. Afterwards, the actual write set is
+diffed against that declaration, and the project's own checks run with
+**pre-existing failures subtracted** — so a lint error that was already there can
+never mask the one this run introduced.
+
+```console
+$ callus scope verify --run-id archref-2026-08-14
+✗ deny — Wrote 1 path(s) outside the declaration: scripts/build.py
+
+  Outside the declaration:
+    modified scripts/build.py
+  Declared: context/knowledge-hub/architecture-reference/*.md
+```
+
+That baseline is captured **per invocation and never committed**, which is what lets
+it catch a break in a file the agent never opened.
 
 ## Install
 
 ```bash
-pip install callusguard                 # the enforcement side — zero dependencies
-pip install 'callusguard[telemetry]'    # adds the recorder (FastAPI + Postgres)
-python3 install.py                    # wire the hooks into Claude Code and/or Codex
+pip install callusguard                 # enforcement — zero dependencies
+pip install 'callusguard[telemetry]'    # adds the recorder
+python3 install.py                      # wire the hooks into Claude Code and/or Codex
 ```
 
-The enforcement half has **no dependencies, no network, and no model calls** — it runs
-inside every tool call, and that is the only reason it is safe to put there. A CI job
-imports it under `python -S` with site-packages unreachable, so the claim cannot rot.
+The enforcement half has **no dependencies, no network, and no model calls**. It runs
+inside every tool call, and that is the only reason it is safe to put there. CI imports
+it under `python -S` with site-packages unreachable, so the claim cannot rot.
 
-## The four stages
+## Not a sandbox — say it plainly
 
-```bash
-callusguard record serve                       # Claude Code hooks POST here
-callusguard record ingest                      # Codex: read ~/.codex/sessions rollouts
-callusguard derive --from-log tool_calls.jsonl --out candidates.rules.json
-callusguard guard check                        # validate rulesets (runs each rule's examples)
-callusguard guard doctor                       # is it actually wired?
-callusguard guard audit                        # verify the hash chain
-callusguard scope declare --create 'docs/**/*.md' --run-id job1
-callusguard scope verify --run-id job1
-```
+callusguard is an **evidence and control loop**, not an isolation boundary.
 
-### record
+- A determined agent can route around any hook. Block `Write` and it uses a Bash
+  heredoc; block `rm` and it reaches for `perl -e "unlink(...)"`.
+- The read-only DB guard is a backstop. **The durable guarantee is a `SELECT`-only
+  role**, not a regex.
+- The `Stop` gate refuses to let a run finish on a violation. It does not roll the
+  writes back. There is no undo.
+- Nothing here is tamper-*proof*. The audit chain proves a log was edited; it does
+  not prevent editing.
 
-Two acquisition models, because the hosts afford different things. Claude Code can
-POST from a hook, so the recorder is a small FastAPI service that queues and writes.
-Codex writes append-only rollout files, so its recorder walks and parses them —
-SQLite by default, zero config. **Both write the same schema, with a `source` column**,
-so one warehouse answers questions across both hosts.
+If you need real isolation, use an OS sandbox or an isolated CI runner — and run
+callusguard inside it. They compose; they don't compete.
 
-### derive
+## What runs when
 
-Reads recurring tool failures, normalises the error text, clusters by signature, and
-emits candidate rules. Everything comes back as `action: "monitor"` — **never
-auto-armed**. A human promotes `monitor → nudge → block`. Rules earn their way up.
+| Stage | Command | Needs deps? |
+|---|---|---|
+| record | `callus record serve` (Claude Code) · `callus record ingest` (Codex) | yes |
+| derive | `callus derive --from-log …` | no |
+| guard | `callus guard check` · `doctor` · `audit` | no |
+| prune | `callus guard prune --days 30` | no |
+| verify | `callus scope declare …` / `callus scope verify …` | no |
 
-> Log real behaviour → find repeated failures → derive candidates → review → promote.
+**On capture scope, precisely:** the Claude Code recorder captures an **allowlist** of
+tools — `Agent`, `Bash`, `Edit`, `Write`, `Read`, `Skill`, `WebFetch`, `WebSearch`, and
+anything matching `mcp__*` — not literally every call. The Codex recorder parses
+rollout files. Both write one schema with a `source` column. Evidence you act on
+should be described accurately; see [docs/TELEMETRY.md](docs/TELEMETRY.md).
 
-### guard
-
-A rule is JSON: a glob on the tool name, regexes on a `tool_input` field, an action,
-and a message. Four graded outcomes, numerically ranked, most-restrictive-wins:
+## Four graded outcomes
 
 | Action | Mechanism | Tool runs? |
 |---|---|---|
-| `monitor` | audit only, never surfaced — the staging rung for a candidate | yes |
+| `monitor` | audit only, never surfaced — where every derived rule starts | yes |
 | `nudge` | `additionalContext` injected so the model self-corrects | yes |
-| `deny` | `permissionDecision: "deny"` — refused, model is told why | no |
+| `deny` | `permissionDecision: "deny"` — refused, model told why | no |
 | `block` | **exit 2** — survives a parent's `bypassPermissions` | no |
 
-> **Nudge when the model can recover. Block when it can't.**
-
-Every verdict lands in a hash-chained, tamper-evident JSONL log. Commands are stored
+Most-restrictive-wins. Every verdict lands in a hash-chained log; commands are stored
 as a SHA-256 plus a secret-redacted preview, never verbatim.
 
-### wroteonly
+> **Nudge when the model can recover. Block when it can't.**
+> **A guard bug must never wedge a session** — every path falls open on an internal
+> error. The only thing allowed to stop your agent is a decision, not a crash.
 
-The agent declares its intended write set before acting; callusguard fingerprints the
-tree and afterwards diffs actual against declared, surfacing only errors *this run*
-introduced. It watches the filesystem rather than the tool stream, because tool-level
-blocks are routable-around — block `Write` and the model uses a Bash heredoc.
+## Where this sits next to other tools
 
-Full detail in [docs/wroteonly.md](docs/wroteonly.md).
+callusguard is deliberately narrow. It is **not** a general policy platform, a
+sandbox, or a competing policy standard.
 
-## What this replaces
-
-Five repos, built at different times off the back of each other:
-
-| Was | Now | What the merge actually removed |
+| If you want… | Use | callusguard's part |
 |---|---|---|
-| `agent-guard` | `callusguard.guard` | — |
-| `codex-guard` | `callusguard.guard` | **182 lines of byte-identical engine**, maintained twice |
-| `cc-logger` | `callusguard.telemetry.cc` | — |
-| `codex-logger` | `callusguard.telemetry.codex` | — |
-| `wroteonly` | `callusguard.wroteonly` | a third copy of the hash-chained audit |
+| One policy across MCP, SDKs, many runtimes | a cross-framework policy platform | policies **earned from observed failures**, not authored up front |
+| Isolation / sandboxing | OS sandbox, isolated CI runners | run callusguard inside it |
+| Human intent → verifiable contract *before* work | spec/contract verification tools | what happens **during and after** execution |
+| A portable policy decision contract | **Microsoft's Agent Control Specification** | callusguard **emits ACS-shaped verdicts** — it consumes the standard rather than rivalling it |
+| A local telemetry dashboard | dedicated observability tools | telemetry here is **evidence for controls**, not the destination |
 
-The two guards turned out to be **the same program wearing two names** — the complete
-diff was a brand string, an env prefix, and an audit path. Not one line of behaviour.
-Host differences now live in one 200-line file.
-
-The two loggers are genuinely different and stay that way: push vs pull is forced by
-what each host offers. They converge at the schema, which is where it matters.
-
-Reasoning, including what was deliberately *not* merged:
-[MERGE.md](MERGE.md).
-
-## Migrating from the old repos
-
-Nothing user-facing changed. `AGENT_GUARD_*` and `CODEX_GUARD_*` still work, the audit
-logs stay at `~/.agent-guard/audit.jsonl` and `~/.codex-guard/audit.jsonl`, and the
-entry-point names are preserved as aliases.
-
-**The audit *logs* are deliberately not merged.** A hash chain is per-file;
-concatenating two would invalidate both. Code merges, chains don't.
+The gap this fills is **policy lifecycle**: *this rule exists because our agents
+repeatedly did this; here is the evidence; here is when we promoted it; here is when
+we retire it.*
 
 ## Tests
 
 ```bash
-python3 -m unittest discover -s tests/guard     -p 'test_*.py'   # 76
+python3 -m unittest discover -s tests/guard     -p 'test_*.py'   # 89
 python3 -m unittest discover -s tests/wroteonly -p 'test_*.py'   # 64
 python3 -m unittest tests.test_dependency_wall                    #  3
 python3 -m pytest tests/telemetry -q                              # 62
 ```
 
-**All 202 tests from the five original repos were ported unchanged and still pass.**
-Only import paths and entry-script locations were rewritten — every assertion is the
-one the original repo shipped. That is the evidence the merge preserved behaviour;
-rewriting the tests would only have proved the new code passes new tests.
-
-The merge itself surfaced three real defects, which is the argument for having done it:
-
-- **Host mis-detection.** `CLAUDECODE=1` is exported into every shell Claude Code
-  spawns, so a Codex hook run from a terminal inside a Claude session was identified
-  as Claude Code — wrong brand, wrong ruleset variable, wrong audit log, silently.
-  The payload now outranks the environment.
-- **A lost rule.** codex-guard's starter set had `apply-patch-writes-secret-file`;
-  agent-guard's did not. A careless copy dropped it. The shipped set is now the union.
-- **Ruleset resolution ordering.** The entry script resolved `<PREFIX>_RULES` before
-  the host was known, so the override silently missed on one host.
-
-## Scope: controls, not a sandbox
-
-- **Not a sandbox.** A determined agent can route around any of this. The durable
-  boundaries are OS-level isolation and a `SELECT`-only DB role — the read-only guard
-  is a backstop, not a boundary.
-- **A guard bug must never wedge a session.** Every enforcement path falls open on an
-  internal error. The only thing allowed to stop a run is a decision, not a crash.
-- **The audit is tamper-*evident*, not tamper-proof.** It proves a chain was edited;
-  it does not prevent editing.
-- **`derive` proposes; it never arms.** Candidates land as `monitor`. Promotion is a
-  human act, on purpose.
+All 202 tests from the five predecessor repos were ported **unchanged** and still
+pass — only import paths were rewritten. That is the evidence behaviour was preserved.
 
 ## Docs
 
-- [MERGE.md](MERGE.md) — how the five repos combine, and what was deliberately left apart
 - [docs/WHEN_TO_USE.md](docs/WHEN_TO_USE.md) — the nudge-vs-block decision
-- [docs/THREAT_MODEL.md](docs/THREAT_MODEL.md) — honest limits
-- [docs/TELEMETRY.md](docs/TELEMETRY.md) — what gets recorded, and what is redacted
+- [docs/THREAT_MODEL.md](docs/THREAT_MODEL.md) — what this does and does not defend against
+- [docs/TELEMETRY.md](docs/TELEMETRY.md) — what is captured, and what is redacted
+- [docs/wroteonly.md](docs/wroteonly.md) — declared-write-set verification in depth
+- [MERGE.md](MERGE.md) — how five repos became one, and what was deliberately left apart
+
+## Why "callus"
+
+A callus is laid down by repeated friction, at exactly the site of the damage — and it
+**resolves when the friction is engineered away.** That is the rule lifecycle, and it
+is the part most guardrail tooling gets backwards.
+
+Shrinking is the tool working, not rotting.
 
 ## License
 
@@ -187,7 +192,7 @@ GNU AGPL-3.0 — see [LICENSE](LICENSE). Copyright (C) 2026 Kai Karlstrom.
 <!-- portfolio-footer -->
 ## Where this fits
 
-Part of a portfolio of **governed, AI-native GTM systems** — reference implementations and reusable patterns extracted from a private production stack. In that system this is the control surface that turns observed agent failures into runtime guarantees.
+Part of a portfolio of **governed, AI-native GTM systems** — reference implementations and reusable patterns extracted from a private production stack. In that system this is the operational memory that turns observed agent failures into runtime guarantees.
 
 **Full portfolio map → [github.com/kkrlstrm](https://github.com/kkrlstrm)**
 

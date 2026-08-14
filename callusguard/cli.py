@@ -108,6 +108,10 @@ def cmd_guard(args) -> int:
         return audit.main([args.audit_action or "verify",
                            args.path or audit.default_path(host)])
 
+    if args.action == "prune":
+        from .guard import lifecycle
+        return _forward(lifecycle.main, args.rest)
+
     if args.action == "rules":
         for name in sorted(os.listdir(RULES_DIR)):
             if name.endswith(".json"):
@@ -143,8 +147,11 @@ def build_parser() -> argparse.ArgumentParser:
                        add_help=False)
     d.set_defaults(func=cmd_derive)
 
-    g = sub.add_parser("guard", help="rulesets, doctor, audit chain")
-    g.add_argument("action", choices=("check", "doctor", "audit", "rules"))
+    # allow_abbrev=False: otherwise argparse resolves a pass-through `--audit`
+    # to this parser's `--audit-action` by prefix match and rejects the value.
+    g = sub.add_parser("guard", help="rulesets, lifecycle, doctor, audit chain",
+                       allow_abbrev=False)
+    g.add_argument("action", choices=("check", "doctor", "audit", "rules", "prune"))
     g.add_argument("--host", choices=("claude-code", "codex"))
     g.add_argument("--audit-action", choices=("verify", "tail"))
     g.add_argument("--path")

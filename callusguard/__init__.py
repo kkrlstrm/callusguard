@@ -2,10 +2,12 @@
 
 A closed loop for agentic coding, in four parts that were previously five repos:
 
-    telemetry   record every tool call        (cc-logger, codex-logger)
-    derive      mine recurring failures       (derive_rules)
-    guard       enforce at the tool boundary  (agent-guard, codex-guard)
+    telemetry   record tool calls (allowlisted on Claude Code; rollout
+                files on Codex)
+    derive      mine recurring failures into candidate rules
+    guard       enforce at the tool boundary, four graded outcomes
     wroteonly   verify the run stayed in scope
+    lifecycle   prune the rules that stopped earning their place
 
 Claude Code and the OpenAI Codex CLI are both first-class hosts throughout.
 

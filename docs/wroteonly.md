@@ -71,9 +71,9 @@ never committed.** That is the whole difference from every other baseline tool â
 ## Install
 
 ```bash
-git clone https://github.com/kkrlstrm/wroteonly.git ~/wroteonly
-python3 ~/wroteonly/install.py --dry-run     # see exactly what it would write
-python3 ~/wroteonly/install.py               # wire both hosts, merge-aware, backed up
+git clone https://github.com/kkrlstrm/callusguard.git ~/callusguard
+python3 ~/callusguard/install.py --dry-run     # see exactly what it would write
+python3 ~/callusguard/install.py               # wire both hosts, merge-aware, backed up
 ```
 
 Zero dependencies. Python 3.9+. No network, no model calls, nothing to configure

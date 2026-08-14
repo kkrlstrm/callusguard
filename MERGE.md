@@ -139,6 +139,6 @@ wroteonly (deliberate, no pytest), `pytest` for the loggers.
   knowledge-graph write gate, not part of the agent loop.
 - **Does not rename anything user-facing yet.** The package name here is a placeholder that
   appears in one constant and the directory name; renaming is a sed.
-- **Does not resolve the published `wroteonly` repo.** It is already public at
-  `kkrlstrm/wroteonly`. Whether that becomes an archived pointer to the monorepo, or stays a
-  split-out mirror, is a positioning decision, not an engineering one.
+- **The standalone `wroteonly` repo has been retired** (made private, 2026-08-14). Its code
+  lives on as `callusguard.wroteonly`; its README is `docs/wroteonly.md`. Any external link to
+  the old repo is dead by design — the loop, not the fragment, is the product.
