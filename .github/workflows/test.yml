@@ -1,0 +1,34 @@
+name: test
+on: [push, pull_request]
+
+jobs:
+  enforcement:
+    # The hot path, with NOTHING installed. If this job ever needs a pip install,
+    # the dependency wall has been breached.
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        python: ["3.9", "3.11", "3.13"]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python }}
+      - name: guard + wroteonly + dependency wall (stdlib only, no install step)
+        run: |
+          python -m unittest discover -s tests/guard -p 'test_*.py'
+          python -m unittest discover -s tests/wroteonly -p 'test_*.py'
+          python -m unittest tests.test_dependency_wall
+
+  telemetry:
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        python: ["3.11", "3.13"]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python }}
+      - run: pip install -e '.[telemetry,dev]'
+      - run: python -m pytest tests/telemetry -q

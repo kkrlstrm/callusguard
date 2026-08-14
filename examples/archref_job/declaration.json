@@ -1,0 +1,13 @@
+{
+  "intent": "Weekly archref discovery: add net-new company deep-dives to the library.",
+  "create": ["context/knowledge-hub/architecture-reference/*.md"],
+  "modify": [
+    "context/knowledge-hub/architecture-reference/_provenance.json",
+    "context/knowledge-hub/architecture-reference/drivers.jsonl",
+    "context/knowledge-hub/architecture-reference/concept-index.json",
+    "context/knowledge-hub/architecture-reference/INDEX.md"
+  ],
+  "forbid": ["**/*.env", ".claude/**", "scripts/**", "config/*.json"],
+  "fail_direction": "open",
+  "checks": []
+}

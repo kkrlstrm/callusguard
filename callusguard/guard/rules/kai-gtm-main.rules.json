@@ -1,0 +1,51 @@
+{
+  "ruleset": "kai-gtm-main",
+  "bias": "fail-open-with-write-backstops",
+  "description": "Repo-specific Codex nudges and write backstops. The database role and external API permissions remain the real security boundary.",
+  "rules": [
+    {
+      "id": "bare-psql-no-target",
+      "tool": "Bash",
+      "any": ["(?:^|[;|&(]|\\$\\()\\s*(?:[A-Za-z_][A-Za-z0-9_]*=\\S*\\s+){0,8}psql\\b"],
+      "unless": ["postgresql://", "postgres://", "\\bPG(HOST|DATABASE|PASSWORD|USER|PORT)\\s*=", "(?:^|\\s)(?:-h|--host)(?:\\s|=)", "(?:^|\\s)(?:-d|--dbname)(?:\\s|=)"],
+      "severity": 40,
+      "action": "nudge",
+      "message": "Use scripts/neon-psql.sh, a full postgresql:// URL, or the ttt helpers instead of bare psql."
+    },
+    {
+      "id": "read-only-sql-backstop",
+      "tool": "Bash",
+      "flags": "i",
+      "norm": true,
+      "any": ["\\b(INSERT\\s+INTO|UPDATE\\b[^;]*\\bSET\\b|DELETE\\s+FROM|TRUNCATE|DROP\\s+(TABLE|DATABASE|SCHEMA)|ALTER\\s+(TABLE|DATABASE|SCHEMA)|GRANT|REVOKE|\\bVACUUM\\b)"],
+      "severity": 90,
+      "action": "block",
+      "message": "Read-only SQL backstop: this command contains a database mutation or DDL. Use an explicitly approved write path."
+    },
+    {
+      "id": "mutating-apply-path",
+      "tool": "Bash",
+      "any": ["(^|\\s)--apply(\\b|$)", "ingest_insights\\.py"],
+      "severity": 80,
+      "action": "nudge",
+      "message": "This is an apply/write path. Confirm scope and explicit approval, then verify the persisted artifact."
+    },
+    {
+      "id": "secret-inline-in-command",
+      "tool": "Bash",
+      "any": ["(?i)\\b(AKIA[0-9A-Z]{16})\\b", "\\bsk-[A-Za-z0-9]{20,}\\b", "\\bghp_[A-Za-z0-9]{30,}\\b", "\\bglpat-[A-Za-z0-9_\\-]{20,}\\b", "(?i)(password|secret|api[_-]?key|token)\\s*=\\s*['\"][^'\"]{8,}['\"]"],
+      "severity": 55,
+      "action": "nudge",
+      "message": "Read credentials from the environment or a secret store; do not place live values in commands or logs."
+    },
+    {
+      "id": "patch-secret-file",
+      "tool": "apply_patch",
+      "any": ["\\*\\*\\*\\s+(Add|Update)\\s+File:\\s*\\S*(\\.env|id_rsa|id_ed25519|\\.pem|credentials|secrets?\\.(ya?ml|json|toml))\\b"],
+      "unless": ["\\.(example|sample|template|dist)\\b"],
+      "severity": 45,
+      "action": "nudge",
+      "message": "Check that this patch contains no live secret and that the target is intentionally ignored or approved."
+    }
+  ]
+}

@@ -1,0 +1,57 @@
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[project]
+name = "callusguard"
+version = "0.3.0"
+description = "Record what your coding agent did, derive guards from it, enforce them, and verify each run stayed in scope. Claude Code and OpenAI Codex."
+readme = "README.md"
+requires-python = ">=3.9"
+license = { text = "AGPL-3.0-or-later" }
+authors = [{ name = "Kai Karlstrom" }]
+keywords = ["claude-code", "codex", "ai-agents", "guardrails", "observability", "telemetry"]
+classifiers = [
+    "License :: OSI Approved :: GNU Affero General Public License v3 or later (AGPLv3+)",
+    "Programming Language :: Python :: 3",
+    "Topic :: Software Development :: Quality Assurance",
+]
+
+# THE DEPENDENCY WALL.
+#
+# Empty, and it stays empty. `callusguard.core`, `callusguard.guard` and
+# `callusguard.wroteonly` run synchronously inside every tool call; "no dependencies,
+# no network, no model calls" is what makes that defensible and what lets someone
+# audit the enforcement path in an afternoon.
+#
+# tests/test_dependency_wall.py enforces this by importing the enforcement layer
+# under `python -S` (site-packages unreachable). Do not add anything here.
+dependencies = []
+
+[project.optional-dependencies]
+# Everything third-party lives behind this extra. The telemetry layer is a server
+# and a batch ingester — out of band, never on the hot path.
+telemetry = [
+    "fastapi>=0.115",
+    "uvicorn[standard]>=0.32",
+    "psycopg[binary]>=3.2",
+]
+dev = [
+    "pytest>=8.0",
+    "pytest-asyncio>=0.24",
+]
+
+[project.scripts]
+# The enforcement CLIs need no extras.
+callus = "callusguard.cli:main"
+wroteonly = "callusguard.wroteonly.cli:main"
+
+[project.urls]
+Homepage = "https://github.com/kkrlstrm/callusguard"
+
+[tool.hatch.build.targets.wheel]
+packages = ["callusguard"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+asyncio_mode = "auto"
