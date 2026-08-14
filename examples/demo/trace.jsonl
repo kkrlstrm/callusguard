@@ -1,0 +1,7 @@
+{"ts":"2026-07-02T09:14:31Z","tool_name":"Bash","tool_input":{"command":"psql -c 'select count(*) from leads'"},"status":"failure","error":"psql: error: connection to server on socket \"/tmp/.s.PGSQL.5432\" failed: No such file or directory"}
+{"ts":"2026-07-02T09:15:02Z","tool_name":"Bash","tool_input":{"command":"psql -c 'select count(*) from campaigns'"},"status":"failure","error":"psql: error: connection to server on socket \"/tmp/.s.PGSQL.5432\" failed: No such file or directory"}
+{"ts":"2026-07-03T14:41:19Z","tool_name":"Bash","tool_input":{"command":"psql -c '\\dt'"},"status":"failure","error":"psql: error: connection to server on socket \"/tmp/.s.PGSQL.5432\" failed: No such file or directory"}
+{"ts":"2026-07-04T11:02:55Z","tool_name":"Bash","tool_input":{"command":"psql -c 'select * from replies limit 5'"},"status":"failure","error":"psql: error: connection to server on socket \"/tmp/.s.PGSQL.5432\" failed: No such file or directory"}
+{"ts":"2026-07-04T11:20:08Z","tool_name":"Bash","tool_input":{"command":"ls -la scripts/"},"status":"success"}
+{"ts":"2026-07-05T08:31:44Z","tool_name":"Bash","tool_input":{"command":"git status"},"status":"success"}
+{"ts":"2026-07-05T16:12:03Z","tool_name":"Bash","tool_input":{"command":"psql -c 'select 1'"},"status":"failure","error":"psql: error: connection to server on socket \"/tmp/.s.PGSQL.5432\" failed: No such file or directory"}

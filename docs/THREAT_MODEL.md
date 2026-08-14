@@ -1,10 +1,10 @@
 # Threat model
 
-Be precise about what this is. agent-guard is a **runtime control layer** for
+Be precise about what this is. callusguard is a **runtime control layer** for
 Claude Code, not a complete security boundary. It's honest about the line, and
 knowing where that line is *is* the feature.
 
-## What agent-guard protects against
+## What callusguard protects against
 
 - **Obvious destructive Bash commands** — `rm -rf /`, force-pushing a protected
   branch, piping a remote script into a shell. Blocked or nudged at the tool
@@ -23,7 +23,7 @@ knowing where that line is *is* the feature.
   history or logs (and the audit log itself stores only a hash + a redacted
   preview, never the raw command).
 
-## What agent-guard does NOT protect against
+## What callusguard does NOT protect against
 
 - **Write-capable credentials.** The read-only backstop is regex over a command
   string. It's a backstop, not a boundary. If the sub-agent holds a DB role that
@@ -55,11 +55,11 @@ earlier line in place, `guard/audit.py verify` catches it. It is **not** a
 compliance vault. An attacker with write access to the file can delete it or
 rewrite the whole chain from genesis, because the head hash isn't anchored
 anywhere external. If you need stronger guarantees, ship each line (or the head
-hash) to an append-only external sink. agent-guard doesn't claim more than local
+hash) to an append-only external sink. callusguard doesn't claim more than local
 tamper-evidence.
 
 ## The honest one-liner
 
-> agent-guard provides a deterministic local hook layer that blocks obvious
+> callusguard provides a deterministic local hook layer that blocks obvious
 > dangerous tool calls, nudges recurring recoverable failures, and backs up a
 > proper least-privilege credential boundary. It does not replace that boundary.

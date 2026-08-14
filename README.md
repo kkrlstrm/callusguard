@@ -13,9 +13,11 @@ actually taught you — and proves whether a given run stayed inside the deal.
 
 ---
 
-## The thing it does that nothing else does
+## What static guardrails leave unfinished: the lifecycle
 
-Every part of this exists somewhere. **The lifecycle does not.**
+Most guardrails stop at policy. Every individual piece below exists somewhere —
+recording, blocking, scope checks. What is rarely joined up is what happens to a
+rule **over its life**.
 
 ```
   a failure happens          →  recorded, with its exit code and error
@@ -78,6 +80,23 @@ $ callus scope verify --run-id archref-2026-08-14
 That baseline is captured **per invocation and never committed**, which is what lets
 it catch a break in a file the agent never opened.
 
+## Try the whole loop in ten seconds
+
+```bash
+git clone https://github.com/kkrlstrm/callusguard.git && cd callusguard
+./examples/demo/run.sh
+```
+
+No install, no dependencies, no network, no config. It plays a 7-event failure trace
+through **record → derive → review → guard → audit → prune**, then runs the scope
+check, and writes only to a temp directory it deletes on exit. Your real audit log and
+rulesets are never touched.
+
+The trace is synthetic — shaped after the failure pattern behind one of the shipped
+starter rules, not a dump of anyone's session. What is real is every artifact it
+produces: the derived rule, the exit-2 block, the hash-chained audit entry, the prune
+verdict.
+
 ## Install
 
 ```bash
@@ -115,6 +134,10 @@ callusguard inside it. They compose; they don't compete.
 | guard | `callus guard check` · `doctor` · `audit` | no |
 | prune | `callus guard prune --days 30` | no |
 | verify | `callus scope declare …` / `callus scope verify …` | no |
+
+The recorder also exposes cc-logger's full verb set through `callus record` —
+`serve`, `migrate`, `sessions`, `inspect`, `insights`, `rate` — plus `ingest` for
+Codex rollout files.
 
 **On capture scope, precisely:** the Claude Code recorder captures an **allowlist** of
 tools — `Agent`, `Bash`, `Edit`, `Write`, `Read`, `Skill`, `WebFetch`, `WebSearch`, and

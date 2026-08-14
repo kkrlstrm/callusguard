@@ -19,6 +19,9 @@ jobs:
           python -m unittest discover -s tests/guard -p 'test_*.py'
           python -m unittest discover -s tests/wroteonly -p 'test_*.py'
           python -m unittest tests.test_dependency_wall
+          python -m unittest tests.test_cli_coverage
+      - name: the demo must actually run
+        run: ./examples/demo/run.sh
 
   telemetry:
     runs-on: ubuntu-latest
@@ -32,3 +35,4 @@ jobs:
           python-version: ${{ matrix.python }}
       - run: pip install -e '.[telemetry,dev]'
       - run: python -m pytest tests/telemetry -q
+      - run: python -m unittest tests.test_cli_coverage

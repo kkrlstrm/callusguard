@@ -1,6 +1,6 @@
 # Claude Code hooks reference
 
-cc-logger registers HTTP hooks for 8 Claude Code event types in `~/.claude/settings.json`. This doc explains what each event is and what cc-logger extracts from it.
+callusguard registers HTTP hooks for 8 Claude Code event types in `~/.claude/settings.json`. This doc explains what each event is and what callusguard extracts from it.
 
 Official Claude Code hooks documentation: https://code.claude.com/docs/en/hooks.md
 
@@ -34,15 +34,15 @@ Official Claude Code hooks documentation: https://code.claude.com/docs/en/hooks.
 
 **Intentionally skipped**: `Glob`, `Grep`, `TodoWrite`, `NotebookEdit`. High-volume, and `Glob`/`Grep` name a *pattern* rather than a specific artifact, so they can't be attributed to a piece of context.
 
-`Read` and `Skill` were skipped originally for volume, then added back: they are the only record of **which context was actually loaded** into a run. Without them you can see what an agent did but never which instruction, memory, or skill it did it from — so "which of these skills is ever used?" and "does loading a given doc change how a run goes?" have no data behind them. See [`scripts/knowledge-effect.py`](../../scripts/knowledge-effect.py) in the parent repo for the report built on this.
+`Read` and `Skill` were skipped originally for volume, then added back: they are the only record of **which context was actually loaded** into a run. Without them you can see what an agent did but never which instruction, memory, or skill it did it from — so "which of these skills is ever used?" and "does loading a given doc change how a run goes?" have no data behind them. See [`scripts/knowledge-effect.py`](../scripts/) in the parent repo for the report built on this.
 
-If you want to change what's captured, edit the `matcher` lines in `~/.claude/settings.json` (under each tool event) AND the `CAPTURE_TOOLS` set in [`src/cc_logger/filters.py`](../src/cc_logger/filters.py).
+If you want to change what's captured, edit the `matcher` lines in `~/.claude/settings.json` (under each tool event) AND the `CAPTURE_TOOLS` set in [`src/cc_logger/filters.py`](../callusguard/telemetry/cc/filters.py).
 
 ## Sub-agent linking
 
 Claude Code does **not** provide a `parent_session_id` or `parent_tool_call_id` field on `SubagentStart`. Linkage is implicit: parent and child share `session_id`, child gets its own `agent_id`.
 
-cc-logger resolves the link by matching on `subagent_type`:
+callusguard resolves the link by matching on `subagent_type`:
 
 1. On `PreToolUse` for `tool_name='Agent'`, we record the `tool_input.subagent_type` in the `tool_calls.subagent_type` column.
 2. On `SubagentStart`, we query for pending `Agent` `tool_calls` in the same session with matching `subagent_type`.
@@ -54,12 +54,12 @@ In practice, Claude Code emits hook events sequentially even when sub-agents exe
 
 ## Transcript-based message capture
 
-Hooks don't include Claude's narration text in their payloads — they only fire at action boundaries. To capture the *decisions* Claude is making mid-process (e.g., "I'll start by exploring the project structure..."), cc-logger reads the Claude Code JSONL transcript file at `transcript_path` (a field present in every hook event).
+Hooks don't include Claude's narration text in their payloads — they only fire at action boundaries. To capture the *decisions* Claude is making mid-process (e.g., "I'll start by exploring the project structure..."), callusguard reads the Claude Code JSONL transcript file at `transcript_path` (a field present in every hook event).
 
 - On `Stop` / `SubagentStop`: incremental ingest, near-realtime
 - On `SessionEnd`: final reconciliation pass
 
-Only `text` blocks are extracted. Claude's `thinking` (extended thinking) blocks are encrypted in the transcript by Anthropic — only a `signature` is present, no plaintext reasoning. This is an API-level choice and not something cc-logger can work around.
+Only `text` blocks are extracted. Claude's `thinking` (extended thinking) blocks are encrypted in the transcript by Anthropic — only a `signature` is present, no plaintext reasoning. This is an API-level choice and not something callusguard can work around.
 
 Insertion is idempotent (`ON CONFLICT (message_id, block_index) DO NOTHING`), so repeated reads of the same transcript are safe.
 
@@ -68,10 +68,10 @@ Insertion is idempotent (`ON CONFLICT (message_id, block_index) DO NOTHING`), so
 Every hook event includes a common envelope:
 - `hook_event_name`, `session_id`, `transcript_path`, `cwd`, `permission_mode`, `effort` (may be a dict like `{"level": "xhigh"}`), `agent_id`, `agent_type`
 
-Models in [`src/cc_logger/models.py`](../src/cc_logger/models.py) use `extra="allow"` so new Claude Code fields don't break the worker — they're just stored in the JSONB columns.
+Models in [`src/cc_logger/models.py`](../callusguard/telemetry/cc/models.py) use `extra="allow"` so new Claude Code fields don't break the worker — they're just stored in the JSONB columns.
 
 ## Disabling capture
 
-To pause without uninstalling: stop the launchd/systemd service. Claude Code's hook timeout is 5 seconds; with cc-logger down it logs the failure and continues.
+To pause without uninstalling: stop the launchd/systemd service. Claude Code's hook timeout is 5 seconds; with the recorder down it logs the failure and continues.
 
 To uninstall fully: `python scripts/install-hooks.py --uninstall` removes the hook entries from settings.json, and `./scripts/uninstall.sh` removes the daemon unit file.

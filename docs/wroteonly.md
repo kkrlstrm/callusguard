@@ -132,7 +132,7 @@ wroteonly verify --run-id "$JOB" || exit 1
 ```
 
 A worked version against a real weekly job is in
-[examples/archref_job/](examples/archref_job/).
+[examples/archref_job/](../examples/archref_job/).
 
 ## New errors only
 
@@ -217,7 +217,7 @@ What is left, and it is narrower than it first looked — the **conjunction**:
 | **wroteonly** | captured **per run**, never committed | **one agent invocation** | yes |
 
 Full write-up, including the checks that shrank this project's claims:
-[docs/existence-checks-2026-08-14.md](docs/existence-checks-2026-08-14.md).
+[docs/existence-checks-2026-08-14.md](existence-checks-2026-08-14.md).
 
 ## Scope: a verifier, not a sandbox
 
@@ -241,12 +241,12 @@ State the limits as loudly as the capability.
 
 ## Docs
 
-- [docs/existence-checks-2026-08-14.md](docs/existence-checks-2026-08-14.md) — what was already built, and what that killed off in this project
+- [docs/existence-checks-2026-08-14.md](existence-checks-2026-08-14.md) — what was already built, and what that killed off in this project
 
 Every module also opens with a docstring explaining the job it owns and the invariant it
 upholds; those are the real spec. Start with
-[`wroteonly/report.py`](wroteonly/report.py) for the decision table and
-[`wroteonly/hosts/__init__.py`](wroteonly/hosts/__init__.py) for where the two hosts
+[`wroteonly/report.py`](../callusguard/wroteonly/report.py) for the decision table and
+[`wroteonly/hosts/__init__.py`](../callusguard/core/hosts.py) for where the two hosts
 genuinely differ.
 
 The build spec and the source-evidence corpus behind the design are not published —
@@ -254,7 +254,7 @@ they carry local paths and unrelated private-stack detail.
 
 ## License
 
-GNU AGPL-3.0 — see [LICENSE](LICENSE). Copyright (C) 2026 Kai Karlstrom.
+GNU AGPL-3.0 — see [LICENSE](../LICENSE). Copyright (C) 2026 Kai Karlstrom.
 
 ---
 
@@ -266,5 +266,5 @@ Part of a portfolio of **governed, AI-native GTM systems** — reference impleme
 **Full portfolio map → [github.com/kkrlstrm](https://github.com/kkrlstrm)**
 
 Works with:
-- [agent-guard](https://github.com/kkrlstrm/agent-guard) — screens the tool call before it runs; wroteonly checks what the whole run actually did
-- [codex-guard](https://github.com/kkrlstrm/codex-guard) — the same control surface for the Codex CLI, the second host wroteonly targets
+- [model-eval-gate](https://github.com/kkrlstrm/model-eval-gate) — the policy gate for delegating work to a cheaper model
+- [agent-tenancy](https://github.com/kkrlstrm/agent-tenancy) — resolves the tenant before the agent runs

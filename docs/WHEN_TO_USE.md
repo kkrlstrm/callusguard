@@ -1,6 +1,6 @@
 # When to fail open vs. fail closed
 
-This is the whole idea behind agent-guard. A guard hook sits between the model and
+This is the whole idea behind callusguard. A guard hook sits between the model and
 a tool call; the only real question is what it does when a rule matches. Two biases,
 and picking the right one per rule is the design work.
 

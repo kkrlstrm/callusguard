@@ -2,7 +2,7 @@
 
 ## "Port 8787 is already in use"
 
-Something else (or an older cc-logger) is bound to 8787. Find it:
+Something else (or an older recorder) is bound to 8787. Find it:
 
 ```bash
 lsof -i :8787    # macOS / Linux

@@ -141,9 +141,23 @@ def classify(rule: dict, stat: dict | None, window_days: int) -> tuple:
 
 
 def report(ruleset_path: str, audit_path: str, window_days: int = 30) -> dict:
-    """Build the lifecycle report for one ruleset against one audit log."""
+    """Build the lifecycle report for one ruleset against one audit log.
+
+    Two different situations both yield zero events in the window, and conflating
+    them makes the report either useless or dangerous:
+
+        no readable log at all      -> we know nothing. Every rule *looks* stale.
+                                       Warn loudly; do not let anyone delete on this.
+        log readable, all older      -> we know a great deal: enforcement ran, and
+        than the window                these rules did not fire. THAT is the prune
+                                       signal, and it deserves no caveat.
+
+    `audit_readable` distinguishes them.
+    """
     since = datetime.now(timezone.utc) - timedelta(days=window_days)
-    events = read_audit(audit_path, since=since)
+    all_events = read_audit(audit_path)          # unwindowed: did the log say anything?
+    events = [e for e in all_events
+              if not _parse_ts(e.get("ts")) or _parse_ts(e.get("ts")) >= since]
     stats = tally(events)
     rules = load_rules(ruleset_path)
 
@@ -170,6 +184,8 @@ def report(ruleset_path: str, audit_path: str, window_days: int = 30) -> dict:
         "audit": audit_path,
         "window_days": window_days,
         "events_in_window": len(events),
+        "events_total": len(all_events),
+        "audit_readable": bool(all_events),
         "rules": rows,
         # Rules that fired but are no longer in the ruleset — usually a rename or a
         # deletion that already happened. Surfaced so the log stays interpretable.
@@ -190,10 +206,14 @@ def render(data: dict) -> str:
                  % (data["events_in_window"], data["window_days"]))
     lines.append("")
 
-    if data["events_in_window"] == 0:
-        lines.append("  ⚠ No audit events in the window. Every rule below reads as a")
-        lines.append("    prune candidate for lack of evidence, not because of it —")
-        lines.append("    check the audit path before deleting anything.")
+    if not data.get("audit_readable"):
+        lines.append("  ⚠ No readable audit log. Every rule below reads as a prune")
+        lines.append("    candidate for lack of evidence, not because of it — check")
+        lines.append("    the audit path before deleting anything.")
+        lines.append("")
+    elif data["events_in_window"] == 0:
+        lines.append("  · The log is intact but every verdict predates the window.")
+        lines.append("    Enforcement ran; these rules did not fire. That is the signal.")
         lines.append("")
 
     for verdict in (PROMOTE, REVIEW, PRUNE, KEEP):

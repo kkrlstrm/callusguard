@@ -1,8 +1,8 @@
 # Schema reference
 
-cc-logger writes to 5 tables (`sessions`, `agent_invocations`, `tool_calls`, `artifacts`, `messages`). Core DDL is in [`migrations/001_initial_schema.py`](../migrations/001_initial_schema.py), token-usage columns in [`migrations/004_tokens.py`](../migrations/004_tokens.py), analytical views in [`migrations/002_views.py`](../migrations/002_views.py), and the `messages` (narration) table in [`migrations/003_messages.py`](../migrations/003_messages.py). Apply all of them at once with `cc-logger migrate --apply` (run order is defined by the list in the CLI, not the filename numbers — 004 runs before 002 because the views read its columns).
+callusguard writes to 5 tables (`sessions`, `agent_invocations`, `tool_calls`, `artifacts`, `messages`). Core DDL is in [`migrations/001_initial_schema.py`](../callusguard/telemetry/migrations/001_initial_schema.py), token-usage columns in [`migrations/004_tokens.py`](../callusguard/telemetry/migrations/004_tokens.py), analytical views in [`migrations/002_views.py`](../callusguard/telemetry/migrations/002_views.py), and the `messages` (narration) table in [`migrations/003_messages.py`](../callusguard/telemetry/migrations/003_messages.py). Apply all of them at once with `callus record migrate --apply` (run order is defined by the list in the CLI, not the filename numbers — 004 runs before 002 because the views read its columns).
 
-> **Where model and tokens come from.** Neither is reliably available from the hook stream — Claude Code's `SessionStart` hook frequently omits the model, and **no** hook event carries token totals (`SessionEnd` reports only a `reason`). Both are instead recovered from the transcript JSONL, where every assistant line records `message.model` and a `message.usage` block. cc-logger sums them in `transcripts.scan_transcript_stats` during the same transcript read it already does for narration. Existing rows can be repopulated with [`scripts/backfill-tokens-model.py`](../scripts/backfill-tokens-model.py).
+> **Where model and tokens come from.** Neither is reliably available from the hook stream — Claude Code's `SessionStart` hook frequently omits the model, and **no** hook event carries token totals (`SessionEnd` reports only a `reason`). Both are instead recovered from the transcript JSONL, where every assistant line records `message.model` and a `message.usage` block. callusguard sums them in `transcripts.scan_transcript_stats` during the same transcript read it already does for narration. Existing rows can be repopulated with [`scripts/backfill-tokens-model.py`](../scripts/backfill-tokens-model.py).
 
 ## `sessions` — one row per Claude Code session
 
@@ -17,8 +17,8 @@ cc-logger writes to 5 tables (`sessions`, `agent_invocations`, `tool_calls`, `ar
 | `end_reason` | TEXT | "exit", "logout", etc. |
 | `input_tokens` / `output_tokens` / `cache_read_tokens` / `cache_creation_tokens` | BIGINT | Token usage summed across **all** the session's invocations (root + every sub-agent), recomputed from the transcript on each ingest. |
 | `total_tokens` | BIGINT | Sum of the four columns above. (Originally meant to come from `SessionEnd`, but that hook carries no token data — it's now derived from the transcript.) |
-| `self_rating` | SMALLINT (1-5) | Retrospective rating. Set with `cc-logger rate <session> <1-5>`. |
-| `retro_note` | TEXT | Free-form retro note. Set with `cc-logger rate … --note "…"`. |
+| `self_rating` | SMALLINT (1-5) | Retrospective rating. Set with `callus record rate <session> <1-5>`. |
+| `retro_note` | TEXT | Free-form retro note. Set with `callus record rate … --note "…"`. |
 
 ## `agent_invocations` — one row per agent (root + every sub-agent)
 

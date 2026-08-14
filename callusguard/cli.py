@@ -60,21 +60,33 @@ def _need_telemetry(what: str) -> int:
 # record — telemetry
 # ---------------------------------------------------------------------------
 
+#: Verbs the Claude Code (push) recorder owns; `ingest` belongs to the Codex puller.
+#:
+#: Asserted against the real sub-CLI by a test. The first cut of this wrapper
+#: hard-coded `choices=("serve", "ingest")`, which silently made `migrate`,
+#: `sessions`, `inspect`, `insights` and `rate` unreachable — five commands that
+#: worked before the merge. A wrapper that quietly drops a predecessor's commands is
+#: a regression, not a simplification.
+CC_VERBS = ("serve", "migrate", "sessions", "inspect", "insights", "rate")
+CODEX_VERBS = ("ingest",)
+
+
 def cmd_record(args) -> int:
-    if args.mode == "ingest":
-        # Codex: pull rollout files. Only needs psycopg for the Postgres backend;
+    mode = args.mode
+    if mode in CODEX_VERBS:
+        # Codex: pull rollout files. Needs psycopg only for the Postgres backend;
         # the default SQLite path is stdlib.
         try:
             from .telemetry.codex import cli as codex_cli
         except ImportError:
-            return _need_telemetry("record ingest")
+            return _need_telemetry("record %s" % mode)
         return _forward(codex_cli.main, args.rest)
 
     try:
         from .telemetry.cc import cli as cc_cli
     except ImportError:
-        return _need_telemetry("record serve")
-    return _forward(cc_cli.main, args.rest)
+        return _need_telemetry("record %s" % mode)
+    return _forward(cc_cli.main, [mode] + list(args.rest))
 
 
 # ---------------------------------------------------------------------------
@@ -139,8 +151,9 @@ def build_parser() -> argparse.ArgumentParser:
 
     r = sub.add_parser("record", help="telemetry (needs the telemetry extra)",
                        add_help=False)
-    r.add_argument("mode", choices=("serve", "ingest"),
-                   help="serve = Claude Code hooks POST in; ingest = read Codex rollouts")
+    r.add_argument("mode", choices=CC_VERBS + CODEX_VERBS, metavar="VERB",
+                   help="serve|migrate|sessions|inspect|insights|rate (Claude Code) "
+                        "· ingest (Codex rollout files)")
     r.set_defaults(func=cmd_record)
 
     d = sub.add_parser("derive", help="mine telemetry into candidate monitor rules",

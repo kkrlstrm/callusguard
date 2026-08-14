@@ -1,0 +1,44 @@
+# cc-logger — local Postgres + capture service
+# Usage: docker compose up -d
+# Then: docker compose exec cc-logger python -m cc_logger.cli migrate --apply
+
+services:
+  postgres:
+    image: postgres:17-alpine
+    environment:
+      POSTGRES_USER: cclogger
+      POSTGRES_PASSWORD: cclogger
+      POSTGRES_DB: cclogger
+    ports:
+      - "127.0.0.1:5432:5432"
+    volumes:
+      - postgres-data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U cclogger -d cclogger"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+    restart: unless-stopped
+
+  cc-logger:
+    build: .
+    depends_on:
+      postgres:
+        condition: service_healthy
+    environment:
+      DATABASE_URL: postgresql://cclogger:cclogger@postgres:5432/cclogger
+      HOOK_PORT: 8787
+      HOOK_HOST: 0.0.0.0
+      LOG_LEVEL: ${LOG_LEVEL:-info}
+      REDACT_SECRETS: ${REDACT_SECRETS:-1}
+    ports:
+      - "127.0.0.1:8787:8787"
+    volumes:
+      # Mirror the host path exactly: hook payloads carry absolute host
+      # transcript_path values that the app opens verbatim. Without this mount,
+      # narration + token/model capture fail silently inside the container.
+      - ${HOME}/.claude/projects:${HOME}/.claude/projects:ro
+    restart: unless-stopped
+
+volumes:
+  postgres-data:

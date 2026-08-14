@@ -1,12 +1,12 @@
 # Privacy and redaction
 
-cc-logger captures **every tool call** Claude Code makes (within the allowlist). That includes the full `tool_input` and `tool_response`. Bash commands, WebFetch URLs, file paths — all of it lands in your Postgres database.
+callusguard captures **every tool call** Claude Code makes (within the allowlist). That includes the full `tool_input` and `tool_response`. Bash commands, WebFetch URLs, file paths — all of it lands in your Postgres database.
 
 By default, **secrets are redacted before write**. Disable with `REDACT_SECRETS=0` if you want raw capture (e.g., on a strictly private DB you control).
 
 ## What gets captured
 
-For an allowlist tool call, cc-logger writes the full payload to `tool_calls.tool_input` and `tool_calls.tool_response` (both JSONB). Examples:
+For an allowlist tool call, callusguard writes the full payload to `tool_calls.tool_input` and `tool_calls.tool_response` (both JSONB). Examples:
 
 - `Bash` PreToolUse → `tool_input` contains `{"command": "<the full shell command>", "description": "..."}`
 - `Bash` PostToolUse → `tool_response` contains `{"stdout": "...", "stderr": "...", "exit_code": N}`
@@ -18,7 +18,7 @@ For an allowlist tool call, cc-logger writes the full payload to `tool_calls.too
 
 ## What redaction does
 
-Default-on. Driven by [`src/cc_logger/redaction.py`](../src/cc_logger/redaction.py). The regex set:
+Default-on. Driven by [`src/cc_logger/redaction.py`](../callusguard/telemetry/cc/redaction.py). The regex set:
 
 | pattern | example | replacement |
 |---|---|---|

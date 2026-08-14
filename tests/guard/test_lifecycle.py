@@ -105,7 +105,8 @@ class TestSafety(LifecycleBase):
         self.assertEqual(data["events_in_window"], 0)
         # Everything reads as prune — so the renderer must warn that the reason is
         # absent evidence, not evidence of absence.
-        self.assertIn("prune candidate for lack of evidence", L.render(data))
+        self.assertIn("No readable audit log", L.render(data))
+        self.assertIn("lack of evidence", L.render(data))
 
     def test_corrupt_lines_are_skipped_not_fatal(self):
         self.write_rules([{"id": "a", "action": "nudge", "message": "m"}])
@@ -144,6 +145,29 @@ class TestRendering(LifecycleBase):
         self.write_audit([_event("other", "nudge", 1)])
         out = L.render(L.report(self.ruleset, self.audit))
         self.assertIn("the tool working, not rotting", out)
+
+
+class TestEmptyLogVersusAgedLog(LifecycleBase):
+    """Zero events in the window means two very different things."""
+
+    def test_unreadable_log_warns_and_is_marked_unreadable(self):
+        self.write_rules([{"id": "a", "action": "nudge", "message": "m"}])
+        data = L.report(self.ruleset, os.path.join(self.dir, "absent.jsonl"))
+        self.assertFalse(data["audit_readable"])
+        self.assertIn("No readable audit log", L.render(data))
+
+    def test_aged_log_is_a_real_prune_signal_not_a_warning(self):
+        """Log present, enforcement ran, rule simply stopped firing."""
+        self.write_rules([{"id": "a", "action": "nudge", "message": "m"}])
+        self.write_audit([_event("a", "nudge", 60)])
+        data = L.report(self.ruleset, self.audit, window_days=30)
+        self.assertTrue(data["audit_readable"])
+        self.assertEqual(data["events_in_window"], 0)
+        self.assertEqual(data["events_total"], 1)
+        out = L.render(data)
+        self.assertNotIn("No readable audit log", out)
+        self.assertIn("every verdict predates the window", out)
+        self.assertEqual(self.verdict_for("a", data), L.PRUNE)
 
 
 if __name__ == "__main__":

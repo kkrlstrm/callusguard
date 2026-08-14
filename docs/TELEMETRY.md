@@ -1,31 +1,31 @@
 # Turning your telemetry into rules
 
-The three rules agent-guard was born from weren't guessed — they came from ~37k
+The three rules callusguard was born from weren't guessed — they came from ~37k
 logged tool calls in a real repo, where a handful of failures kept recurring. A
 failure that keeps happening is a job the model can't do reliably on its own yet.
 That's the definition of a candidate rule.
 
-`bin/derive_rules.py` finds those clusters for you and writes them out as candidate
+`bin/callus derive` finds those clusters for you and writes them out as candidate
 `monitor` rules. It never arms anything — you review, refine, and promote.
 
 ## The loop
 
 ```
 observe failures  ──>  derive candidates  ──>  review + refine  ──>  promote      ──>  audit
-(cc-logger / logs)     (derive_rules.py)       (edit the JSON)       monitor→nudge/block   (hash-chained)
+(recorder / logs)     (derive_rules.py)       (edit the JSON)       monitor→nudge/block   (hash-chained)
         ^                                                                                    │
         └────────────────────────────  the audit log is the next round's telemetry  ─────────┘
 ```
 
-## From a cc-logger database (the rich path)
+## From a recorder database (the rich path)
 
-[cc-logger](https://github.com/…/cc-logger) records every tool call — `tool_name`,
+The recorder records every tool call — `tool_name`,
 `tool_input`, `status`, `error` — into Postgres. That's exactly the substrate a rule
 needs. `derive_rules.py` shells out to `psql` (no Python driver required) and runs
-[`sql/recurring_failures.sql`](../sql/recurring_failures.sql):
+[`sql/recurring_failures.sql`](../callusguard/derive/recurring_failures.sql):
 
 ```bash
-python3 bin/derive_rules.py --from-cc-logger --days 7 --min-count 3 \
+python3 bin/callus derive --from-cc-logger --days 7 --min-count 3 \
     --db-url "$NEON_CC_LOGGER_URL" --out candidates.rules.json
 ```
 
@@ -38,7 +38,7 @@ psql "$NEON_CC_LOGGER_URL" -f sql/recurring_failures.sql
 ### Read-only and context tools are skipped
 
 A logger may capture tools that exist for *attribution* rather than for action —
-cc-logger records `Read` and `Skill` so you can tell which instruction, memory, or
+callusguard records `Read` and `Skill` so you can tell which instruction, memory, or
 skill a run actually loaded. Their failures are not rule material: a `Read` that
 misses is the agent probing whether a file exists, not a failure mode worth guarding.
 They are also high-volume enough to clear the threshold in any window, so left in they
@@ -55,12 +55,12 @@ by default. Adjust per run:
 
 ## From a JSONL log (zero dependencies)
 
-No cc-logger? Point it at any newline-delimited JSON log of tool calls. A line needs
+No recorder running? Point it at any newline-delimited JSON log of tool calls. A line needs
 a tool name, an optional command, and a failure signal (`status: "failure"`, a
 non-empty `error`, or `is_error: true`):
 
 ```bash
-python3 bin/derive_rules.py --from-log tool_calls.jsonl --out candidates.rules.json
+python3 bin/callus derive --from-log tool_calls.jsonl --out candidates.rules.json
 ```
 
 ## What you get
@@ -91,7 +91,7 @@ the error signature, and the window. Nothing blocks or nudges until you promote 
 
 The derive step is deterministic; the *judgment* (which candidates matter, how to
 phrase them) is not. A natural pattern is a weekly agent that runs `derive_rules.py`
-against your cc-logger, reasons over the candidates, and proposes rule/system changes
+against your telemetry store, reasons over the candidates, and proposes rule/system changes
 for you to approve. The failure counts tell you where the model keeps tripping — and
 sometimes the right fix isn't a guard rule at all, but a helper script or a doc fix
 so the failure can't happen in the first place.
