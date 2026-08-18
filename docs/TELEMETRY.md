@@ -69,9 +69,9 @@ python3 bin/callus derive --from-log tool_calls.jsonl --out candidates.rules.jso
   a starting command pattern (`\bpsql\b`, `\bgit\s+push\b`, …). The regex is a
   *draft* — tighten it and write a message that tells the model what to do instead.
 - **A whole tool surface that keeps failing** (an MCP server, `WebFetch`) becomes one
-  tool-wide candidate. MCP methods roll up to their server (`mcp__Neon__*`), so a
+  tool-wide candidate. MCP methods roll up to their server (`mcp__Acme__*`), so a
   misconfigured server surfaces as a single signal — this is exactly how the original
-  "wrong Neon account" deny rule was found.
+  "MCP bound to the wrong account" deny rule was found.
 
 Every candidate ships as `action: "monitor"` with `meta` recording the fail count,
 the error signature, and the window. Nothing blocks or nudges until you promote it.

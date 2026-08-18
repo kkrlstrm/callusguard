@@ -18,7 +18,7 @@ WHY BOTH, AND WHY THE SCAN IS AUTHORITATIVE
     model uses a Bash heredoc; block `rm` and it uses `perl -e "unlink(...)"`. Worse,
     under `--permission-mode bypassPermissions` Claude Code's Write/Edit run
     in-process via `fs.writeFileSync` and skip sandbox filesystem isolation entirely
-    (anthropics/claude-code#29048) — which is exactly the mode the archref job runs.
+    (anthropics/claude-code#29048) — which is exactly the mode unattended jobs run in.
 
     So a verifier that trusts only the hook stream is verifying the honest path. The
     scan is what makes the answer true. The hook stream is a convenience for

@@ -1,9 +1,8 @@
 -- 16_hook_targets.sql — "where should the next red squiggly go?"
 --
 -- A monthly dashboard for monitoring hook opportunities from real telemetry.
--- Sections A–C track the THREE hooks already shipped (PreToolUse guard:
--- scripts/hooks/pretooluse-guard.py) so you can watch their target patterns
--- shrink. Sections D–G are GENERATIVE — they surface NEW recurring failure
+-- Sections A–C track hooks you have ALREADY shipped, so you can watch their target
+-- patterns shrink. Sections D–H are GENERATIVE — they surface NEW recurring failure
 -- clusters, helper-bypass drift, unreliable tools, and generated-file edits
 -- that are candidates for the next hook.
 --
@@ -11,10 +10,15 @@
 -- (2) DETERMINISTICALLY DETECTABLE from tool_name/tool_input, and (3) has a
 -- known fix. These queries find (1); you judge (2) and (3).
 --
--- Run against the cc-logger DB (NEON_CC_LOGGER_URL in cc-logger/.env):
---   cd /path/to/your/project
---   set -a; . cc-logger/.env; set +a
---   scripts/neon-psql.sh "$NEON_CC_LOGGER_URL" -f cc-logger/queries/16_hook_targets.sql
+-- THIS IS A TEMPLATE, NOT A DASHBOARD.
+--   Sections A, E and G reference helper names and file conventions specific to one
+--   repo — a psql wrapper, a repo CLI, a generated config file. The placeholders
+--   (`db-wrapper`, `repo-cli`, `report-cli`, `config/generated.json`) exist to be
+--   replaced with YOUR equivalents. Left as-is they match nothing and every count
+--   reads zero, which looks like health and is not.
+--
+-- Run against the cc-logger DB:
+--   psql "$DATABASE_URL" -f queries/16_hook_targets.sql
 --
 -- Tune the window / clustering threshold here:
 \set window_days 30
@@ -46,7 +50,7 @@ SELECT
 FROM (
   SELECT status,
     cmd ~ '(^|[;|&(]|\$\()[[:space:]]*([A-Za-z_][A-Za-z0-9_]*=[^[:space:]]+[[:space:]]+)*psql([[:space:]]|$)' AS is_psql,
-    ( cmd ~ 'neon-psql'
+    ( cmd ~ 'db-wrapper'                       -- ← your psql wrapper's name
       OR cmd ~ 'postgres(ql)?://'
       OR cmd ~ 'PG(HOST|DATABASE|PASSWORD|USER|PORT)[[:space:]]*='
       OR cmd ~ '(^|[[:space:]])(-h|--host)([[:space:]]|=)' ) AS guarded
@@ -64,12 +68,13 @@ WHERE tool_name = 'Bash'
      OR tool_input->>'command' ~ 'export[[:space:]]+\$\([^)]*\.env'
      OR tool_input->>'command' ~ '\.env[^|]*\|[[:space:]]*xargs' );
 
-\echo '\n===== C. HOOK #3 — Neon MCP calls (should be 0 after removal + deny) ====='
+\echo '\n===== C. a denied MCP surface (should trend to 0 after removal + deny) ====='
+\echo '(swap the server name below for whichever surface you denied)'
 SELECT tool_name,
        count(*) AS calls,
        count(*) FILTER (WHERE status='failure') AS fails
 FROM tool_calls
-WHERE tool_name LIKE 'mcp__Neon__%'
+WHERE tool_name LIKE 'mcp__YourServer__%'
   AND started_at > now() - (:window_days * interval '1 day')
 GROUP BY 1 ORDER BY calls DESC;
 
@@ -96,13 +101,13 @@ WITH b AS (
     AND started_at > now() - (:window_days * interval '1 day')
 )
 SELECT
-  count(*) FILTER (WHERE cmd ~ '(^|[^[:alnum:]_/-])psql ' AND cmd !~ 'neon-psql') AS raw_psql,
-  count(*) FILTER (WHERE cmd ~ 'neon-psql')                                       AS via_neon_psql,
-  count(*) FILTER (WHERE cmd ~ 'glab api')                                        AS raw_glab_api,
-  count(*) FILTER (WHERE cmd ~ 'gl\.py')                                          AS via_gl_py,
-  count(*) FILTER (WHERE cmd ~ 'bison-report')                                    AS via_bison_report,
-  count(*) FILTER (WHERE cmd ~ 'python3? +-c')                                    AS python_dash_c,
-  count(*) FILTER (WHERE cmd ~ '<<[-~]?[[:space:]]*''?[A-Z]')                     AS heredocs
+  -- Replace the quoted names with your own raw-CLI / helper pairs.
+  count(*) FILTER (WHERE cmd ~ '(^|[^[:alnum:]_/-])psql ' AND cmd !~ 'db-wrapper') AS raw_psql,
+  count(*) FILTER (WHERE cmd ~ 'db-wrapper')                                       AS via_db_wrapper,
+  count(*) FILTER (WHERE cmd ~ 'repo-cli')                                         AS via_repo_cli,
+  count(*) FILTER (WHERE cmd ~ 'report-cli')                                       AS via_report_cli,
+  count(*) FILTER (WHERE cmd ~ 'python3? +-c')                                     AS python_dash_c,
+  count(*) FILTER (WHERE cmd ~ '<<[-~]?[[:space:]]*''?[A-Z]')                      AS heredocs
 FROM b;
 
 \echo '\n===== F. UNRELIABLE TOOLS / NEW MCP TRAPS (fail % leaderboard) ====='
@@ -120,9 +125,10 @@ LIMIT 20;
 
 \echo '\n===== G. GENERATED / AUTO-FILE EDITS (candidate hook #4) ====='
 SELECT
-  count(*) FILTER (WHERE fp ~ 'config/clients\.json')      AS clients_json,
-  count(*) FILTER (WHERE fp ~ '\.claude/skills/client-')   AS client_skill_md,
-  count(*) FILTER (WHERE fp ~ 'INDEX\.md$')                AS index_md
+  -- Replace with the generated files YOUR build scripts own.
+  count(*) FILTER (WHERE fp ~ 'config/generated\.json')     AS generated_config,
+  count(*) FILTER (WHERE fp ~ '\.claude/skills/generated-') AS generated_skill_md,
+  count(*) FILTER (WHERE fp ~ 'INDEX\.md$')                 AS index_md
 FROM (
   SELECT tool_input->>'file_path' AS fp
   FROM tool_calls

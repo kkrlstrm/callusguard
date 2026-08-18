@@ -88,12 +88,13 @@ class EngineUnit(unittest.TestCase):
             return json.load(f)["rules"]
 
     def test_shipped_rulesets_are_valid(self):
-        for name in ("starter.rules.json", "readonly-db.rules.json"):
+        for name in ("starter.rules.json", "readonly-db.rules.json",
+                     "project-repo.rules.json"):
             problems = engine.verify_rules(self._rules(name))
             self.assertEqual(problems, [], msg=f"{name}: {problems}")
 
     def test_example_ruleset_is_valid(self):
-        with open(os.path.join(REPO, "examples", "gtm-repo.rules.json")) as f:
+        with open(os.path.join(REPO, "examples", "project-repo.rules.json")) as f:
             problems = engine.verify_rules(json.load(f)["rules"])
         self.assertEqual(problems, [])
 

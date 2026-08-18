@@ -2,10 +2,11 @@
 # The dogfood case: a weekly unattended job that writes to a library directory
 # with no write-set guard, under --permission-mode bypassPermissions.
 #
-# This is the shape from kai-gtm-agents/scripts/launchd/archref-discover-run.sh:
-# a headless `claude -p` pass narrows a candidate list, reads docs for each
-# survivor, and writes <slug>.md files into the reference library. It has already
-# had one run stall and one run write nothing.
+# The shape is a scheduled (launchd/cron) job in which a headless `claude -p` pass
+# narrows a candidate list, reads sources for each survivor, and writes one <slug>.md
+# per result into a reference library. Jobs like this fail quietly: in the run this
+# example is modelled on, one execution stalled and another wrote nothing at all, and
+# neither surfaced until someone looked.
 #
 # WHY THE CLI PATH AND NOT HOOKS, FOR THIS JOB SPECIFICALLY
 #   The job runs `--permission-mode bypassPermissions`. In that mode Claude Code's
@@ -20,10 +21,10 @@
 
 set -euo pipefail
 
-REPO="${REPO:-$HOME/kai-gtm-agents}"
-LIB="context/knowledge-hub/architecture-reference"
-RUN_ID="archref-$(date +%Y-%m-%d)"
-WROTEONLY="${WROTEONLY:-$HOME/wroteonly/bin/wroteonly}"
+REPO="${REPO:-$HOME/your-repo}"
+LIB="context/reference-library"
+RUN_ID="library-$(date +%Y-%m-%d)"
+WROTEONLY="${WROTEONLY:-$(command -v wroteonly)}"
 
 # --- 1. declare intent and snapshot the baseline ---------------------------
 # Stated before the agent runs, so the comparison afterwards is against a promise
@@ -31,11 +32,11 @@ WROTEONLY="${WROTEONLY:-$HOME/wroteonly/bin/wroteonly}"
 "$WROTEONLY" declare \
   --run-id "$RUN_ID" \
   --root "$REPO" \
-  --intent "Weekly archref discovery: add net-new company deep-dives to the library." \
+  --intent "Weekly library refresh: add net-new deep-dives to the reference library." \
   --create "$LIB/*.md" \
   --modify "$LIB/_provenance.json" \
-  --modify "$LIB/drivers.jsonl" \
-  --modify "$LIB/concept-index.json" \
+  --modify "$LIB/entries.jsonl" \
+  --modify "$LIB/index.json" \
   --modify "$LIB/INDEX.md" \
   --forbid '**/*.env' \
   --forbid '.claude/**' \
@@ -47,23 +48,21 @@ WROTEONLY="${WROTEONLY:-$HOME/wroteonly/bin/wroteonly}"
 # --- 2. run the agent ------------------------------------------------------
 # Unchanged from the real job. wroteonly does not wrap, proxy, or slow it down.
 set +e
-timeout 5400 claude -p "$(cat "$REPO/$LIB/_prompt.md" 2>/dev/null || echo 'Run the weekly archref extract.')" \
+timeout 5400 claude -p "$(cat "$REPO/$LIB/_prompt.md" 2>/dev/null || echo 'Run the weekly library refresh.')" \
   --permission-mode bypassPermissions \
-  --max-budget-usd 18
+  --max-budget-usd 20
 AGENT_EXIT=$?
 set -e
 
 # --- 3. verify -------------------------------------------------------------
 # Exit 2 = the agent wrote outside what it declared, or newly broke a check.
-# Anything the job would normally do on failure goes here; in the real job this is
-# where the attention inbox gets an entry instead of the run passing silently.
+# Anything the job would normally do on failure goes here. Wire it to whatever your
+# scheduled jobs already use to raise a human — an alert, a queue, a notification —
+# so the failure cannot pass silently, which is the whole point.
 if ! "$WROTEONLY" verify --run-id "$RUN_ID" --root "$REPO"; then
-  echo "archref: write-set verification FAILED — see above." >&2
-  # python3 -c "import sys;sys.path.insert(0,'$REPO/scripts/lib');
-  #             from attention import enqueue;
-  #             enqueue(source='archref', severity='error',
-  #                     title='archref wrote outside its declared set', detail='...')"
+  echo "library job: write-set verification FAILED — see above." >&2
+  # notify-your-oncall "library job wrote outside its declared set"
   exit 1
 fi
 
-echo "archref: agent exited $AGENT_EXIT; write set verified clean."
+echo "library job: agent exited $AGENT_EXIT; write set verified clean."

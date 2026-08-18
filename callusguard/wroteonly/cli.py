@@ -16,8 +16,8 @@ Two audiences:
 
 WHY THE CLI PATH IS NOT SECOND-CLASS
     Hooks give a pre-emptive block and per-tool attribution. The CLI gives the same
-    verdict from the same code with none of the host coupling. For the archref job —
-    an unattended `claude -p` under `bypassPermissions` — the CLI path is the more
+    verdict from the same code with none of the host coupling. For the library job in
+    `examples/` — an unattended `claude -p` under `bypassPermissions` — the CLI is the
     honest integration, because it verifies the tree rather than trusting the tool
     stream that `bypassPermissions` is already known to bypass.
 """

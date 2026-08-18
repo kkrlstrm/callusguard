@@ -16,13 +16,13 @@ It works with Claude Code and the OpenAI Codex CLI as hooks, and with any agent 
 as three lines of shell.
 
 ```console
-$ wroteonly verify --run-id archref-2026-08-14
+$ wroteonly verify --run-id library-2026-08-14
 ✗ wroteonly: deny — Wrote 1 path(s) outside the declaration: scripts/build.py
 
   Outside the declaration:
     modified scripts/build.py
 
-  Declared: context/knowledge-hub/architecture-reference/*.md
+  Declared: context/reference-library/*.md
 
   To resolve: revert the writes listed above, or re-run with a
   declaration that includes them if they were intended.
@@ -135,7 +135,7 @@ wroteonly verify --run-id "$JOB" || exit 1
 ```
 
 A worked version against a real weekly job is in
-[examples/archref_job/](../examples/archref_job/).
+[examples/library_job/](../examples/library_job/).
 
 ## New errors only
 

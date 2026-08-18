@@ -5,7 +5,7 @@ implementing each component and write down what you find, including if it kills 
 and *"If either is already well-served, **stop and report** rather than duplicating."*
 
 > **A note on the citations below.** This document was written against an internal build spec
-> (`SPEC.md`) and a 16k-word evidence corpus extracted from a private 93-company reference library.
+> (`SPEC.md`) and an evidence corpus extracted from a private reference library.
 > Neither is published — they contain local paths and unrelated private-stack detail. References to
 > them are kept verbatim rather than scrubbed, because editing the record of what was checked, after
 > the checking, would defeat the point of the record. Everything a reader needs to *evaluate* the
@@ -74,7 +74,7 @@ liability" — Microsoft already has it:**
 this rested on a negative search result. It did. The negative was wrong.
 
 Appendix C's line *"A verdict `reason` field, policy-id field, or decision envelope schema anywhere.
-… **No source publishes a verdict object schema.**"* was true of the 93-company corpus and false of
+… **No source publishes a verdict object schema.**"* was true of that private corpus and false of
 the open-source world at the time it was written. AGT has `decision` + `reason` + a bound `policy.id`
 + a full envelope, formally specified.
 
@@ -180,8 +180,8 @@ Two facts from the check make that answer easy, and both **strengthen** `wroteon
 - **Static allowlists are bypassable in exactly the spec's dogfood scenario.**
   anthropics/claude-code #29048 reports that with `permissionMode: "bypassPermissions"` and sandbox
   enabled, Write/Edit run in-process via `fs.writeFileSync` and are **not** subject to
-  `sandbox.filesystem.allowWrite`. The archref job (`SPEC.md` §3.5) runs exactly
-  `--permission-mode bypassPermissions`.
+  `sandbox.filesystem.allowWrite`. The unattended library job the spec dogfoods against
+  (`SPEC.md` §3.5) runs exactly `--permission-mode bypassPermissions`.
 - **Pre-hoc path blocking is whack-a-mole.** Practitioner consensus: block `Write` and the model uses
   a Bash heredoc; block `rm` and it uses `perl -e "unlink(...)"`. This is a direct argument for
   **post-hoc observation of the actual write set** over pre-hoc path gating — i.e. for `wroteonly`'s

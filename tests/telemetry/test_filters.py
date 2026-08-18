@@ -43,7 +43,7 @@ def test_capture_set_is_explicit():
 
 
 def test_mcp_prefix_matches():
-    assert should_capture("mcp__Neon__list_projects")
+    assert should_capture("mcp__Acme__list_projects")
     assert should_capture("mcp__claude_ai_Notion__authenticate")
     assert should_capture("mcp__Anything__at_all")
 

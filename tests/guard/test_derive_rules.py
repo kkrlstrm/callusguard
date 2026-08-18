@@ -23,9 +23,9 @@ LOG = [
     {"tool_name": "Bash", "tool_input": {"command": "psql -c 'SELECT 2'"}, "status": "failure", "error": 'FATAL: database "b" does not exist'},
     {"tool_name": "Bash", "tool_input": {"command": "psql -c 'SELECT 3'"}, "status": "failure", "error": 'FATAL: database "c" does not exist'},
     {"tool_name": "Bash", "tool_input": {"command": "ls"}, "status": "success"},
-    {"tool_name": "mcp__Neon__run_sql", "tool_input": {}, "status": "failure", "error": "401 unauthorized"},
-    {"tool_name": "mcp__Neon__run_sql", "tool_input": {}, "status": "failure", "error": "403 forbidden 9"},
-    {"tool_name": "mcp__Neon__list_projects", "tool_input": {}, "status": "failure", "error": "401 unauthorized"},
+    {"tool_name": "mcp__Acme__run_sql", "tool_input": {}, "status": "failure", "error": "401 unauthorized"},
+    {"tool_name": "mcp__Acme__run_sql", "tool_input": {}, "status": "failure", "error": "403 forbidden 9"},
+    {"tool_name": "mcp__Acme__list_projects", "tool_input": {}, "status": "failure", "error": "401 unauthorized"},
     {"tool_name": "WebFetch", "tool_input": {"url": "http://x"}, "status": "failure", "error": "timeout"},
 ]
 
@@ -54,12 +54,12 @@ class DeriveRules(unittest.TestCase):
         self.assertEqual(psql[0]["meta"]["fail_count"], 3)
 
     def test_mcp_namespace_aggregation(self):
-        # 2 run_sql + 1 list_projects = 3 across the mcp__Neon__ surface.
+        # 2 run_sql + 1 list_projects = 3 across the mcp__Acme__ surface.
         cands = self._candidates()
-        neon = [c for c in cands if c["tool"] == "mcp__Neon__*"]
-        self.assertEqual(len(neon), 1)
-        self.assertEqual(neon[0]["meta"]["fail_count"], 3)
-        self.assertNotIn("any", neon[0])  # tool-wide
+        server = [c for c in cands if c["tool"] == "mcp__Acme__*"]
+        self.assertEqual(len(server), 1)
+        self.assertEqual(server[0]["meta"]["fail_count"], 3)
+        self.assertNotIn("any", server[0])  # tool-wide
 
     def test_threshold_excludes_singletons(self):
         cands = self._candidates(min_count=3)

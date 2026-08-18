@@ -1,0 +1,13 @@
+{
+  "intent": "Weekly library refresh: add net-new deep-dives to the reference library.",
+  "create": ["context/reference-library/*.md"],
+  "modify": [
+    "context/reference-library/_provenance.json",
+    "context/reference-library/entries.jsonl",
+    "context/reference-library/index.json",
+    "context/reference-library/INDEX.md"
+  ],
+  "forbid": ["**/*.env", ".claude/**", "scripts/**", "config/*.json"],
+  "fail_direction": "open",
+  "checks": []
+}

@@ -66,12 +66,12 @@ diffed against that declaration, and the project's own checks run with
 never mask the one this run introduced.
 
 ```console
-$ callus scope verify --run-id archref-2026-08-14
+$ callus scope verify --run-id library-2026-08-14
 ✗ deny — Wrote 1 path(s) outside the declaration: scripts/build.py
 
   Outside the declaration:
     modified scripts/build.py
-  Declared: context/knowledge-hub/architecture-reference/*.md
+  Declared: context/reference-library/*.md
 ```
 
 That baseline is captured **per invocation and never committed**, which is what lets
@@ -106,13 +106,13 @@ The generalizing step is human, and the diff is the point:
 
 | what derive proposed | what got promoted |
 |---|---|
-| `\bpython3\s+scripts/page\-digest\.py\b` | `page-digest\.py\b(?!.*--entity)` |
+| `\bpython3\s+scripts/fetch\-tool\.py\b` | `fetch-tool\.py\b(?!.*--entity)` |
 | `\bpsql\b` | `(?:^\|[;\|&(]\|\$\()\s*(?:[A-Za-z_]\w*=\S*\s+)*psql\b` |
 | `\bsleep\b` | `\b(?:for\|while)\b[\s\S]{0,400}?\bsleep\s+\d` |
 
 Each promoted regex encodes something the counter had no access to: that the failure
-is the *absence* of a flag, that a leading env assignment still counts as a bare
-invocation, that the problem is a poll loop rather than a sleep.
+is the *absence* of a required flag, that a leading env assignment still counts as a
+bare invocation, that the problem is a poll loop rather than a sleep.
 
 **So the honest claim is narrower and, I think, more useful: derivation allocates
 reviewer attention.** It finds the clusters worth 60 seconds of a human's time and
@@ -160,15 +160,20 @@ Failure rate among **matching** Bash attempts, split at each rule's promotion da
 
 | Rule | Before | After | Attempts |
 |---|---|---|---|
-| `page-digest-missing-entity` | 19.1% | **1.4%** | 131 → 142 |
+| `cli-missing-required-flag` | 19.1% | **1.4%** | 131 → 142 |
 | `bash-busywait-poll-loop` | 11.5% | **3.2%** | 139 → 94 |
 | `shell-source-dotenv` | 16.1% | **8.6%** | 249 → 440 |
 | `curl-page-scrape-spoofed-ua` | 2.0% | **0.0%** | 653 → 215 |
 | `bash-sleep-chained-command` | 2.4% | 0.0% | 82 → 23 |
 | `bare-psql-no-target` | 7.6% | 19.0% | **980 → 174** |
-| `phoneburner-db-hand-rolled` | 11.4% | 20.0% | 220 → 20 |
+| `client-db-hand-rolled` | 11.4% | 20.0% | 220 → 20 |
 | `macos-timeout-not-installed` | 26.2% | 26.8% | 42 → 82 |
-| `page-digest-dead-domain-retry` | 7.0% | **17.3%** | 1553 → 1746 |
+| `fetch-dead-domain-retry` | 7.0% | **17.3%** | 1553 → 1746 |
+
+Four of those IDs are generalized from their originals, which named internal tools in
+the private repo they came from. Nothing else was altered: the failure modes, the
+dates, the rates and the attempt counts are exactly what `evidence-report.py` printed.
+Run it against your own telemetry and you will get your own names.
 
 **Read the attempt counts, not just the rates.** `bare-psql-no-target` looks like a
 regression until you notice attempts collapsed from 980 to 174: the nudge did not make
@@ -193,12 +198,12 @@ lifecycle report it sits in REVIEW, which is the correct verdict for the wrong r
 it is not "enforcement works but the workflow is unfixed," it is a rule that has never
 demonstrably helped. It should be rewritten or pruned.
 
-**`page-digest-dead-domain-retry` caused failures.** 7.0% → 17.3%. Its own
-`meta.why` records the cause: the nudge message named a `--waterfall` flag that did
-not exist, so agents that followed the advice exited 2. A guard that fires 1,057
-times, more than every other rule combined, and hands out a wrong flag is worse than
-no guard. It was caught by this same loop and the message was fixed; the tail is still
-in the numbers above.
+**`fetch-dead-domain-retry` caused failures.** 7.0% → 17.3%. Its own `meta.why`
+records the cause: the nudge message told agents to pass a flag that the tool did not
+have, so every agent that followed the advice exited 2. A guard that fires 1,057
+times — more than every other rule combined — and hands out an argument that does not
+exist is worse than no guard. It was caught by this same loop and the message was
+fixed; the tail is still in the numbers above.
 
 That is the case for the `monitor` rung existing at all. Both of these were `nudge` —
 advisory, recoverable, and survivable. Neither was a `block`. The graded-outcome table
