@@ -1,9 +1,12 @@
 # wroteonly
 
-<!-- portfolio-status -->
-**Status:** New — built against a real unattended job in my own stack; not yet production-aged. · **Layer:** Execution controls · **[Portfolio map ›](https://github.com/kkrlstrm)**
-
 **Make the agent say what it will touch. Then check.**
+
+> **Status: no production track record.** This is wired, tested (64 tests) and
+> demonstrated against a real unattended job, but unlike the guard half it has not yet
+> run unattended over a sustained period, so there are no numbers for it in the
+> README's evidence section. Read what follows as a design that works, not as a
+> measured one.
 
 An agent declares its intended write set before it acts. wroteonly fingerprints the
 tree, gets out of the way, and afterwards diffs what actually changed against what was
@@ -254,17 +257,5 @@ they carry local paths and unrelated private-stack detail.
 
 ## License
 
-GNU AGPL-3.0 — see [LICENSE](../LICENSE). Copyright (C) 2026 Kai Karlstrom.
-
----
-
-<!-- portfolio-footer -->
-## Where this fits
-
-Part of a portfolio of **governed, AI-native GTM systems** — reference implementations and reusable patterns extracted from a private production stack. In that system this is the check that turns an agent's stated intent into a machine-verified transaction.
-
-**Full portfolio map → [github.com/kkrlstrm](https://github.com/kkrlstrm)**
-
-Works with:
-- [model-eval-gate](https://github.com/kkrlstrm/model-eval-gate) — the policy gate for delegating work to a cheaper model
-- [agent-tenancy](https://github.com/kkrlstrm/agent-tenancy) — resolves the tenant before the agent runs
+Apache-2.0 — see [LICENSE](../LICENSE) and [NOTICE](../NOTICE).
+Copyright (C) 2026 Kai Karlstrom.

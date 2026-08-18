@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 # Copyright (C) 2026 Kai Karlstrom
-# SPDX-License-Identifier: AGPL-3.0-or-later
+# SPDX-License-Identifier: Apache-2.0
 """Migration 004: Token usage columns.
 
 Claude Code's hook events do NOT carry token totals (SessionEnd only reports a

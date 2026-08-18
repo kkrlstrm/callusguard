@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 # Copyright (C) 2026 Kai Karlstrom
-# SPDX-License-Identifier: AGPL-3.0-or-later
+# SPDX-License-Identifier: Apache-2.0
 """Migration 003: Assistant message capture.
 
 Adds a `messages` table that stores Claude's text/narration blocks

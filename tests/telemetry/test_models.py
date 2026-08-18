@@ -1,5 +1,5 @@
 # Copyright (C) 2026 Kai Karlstrom
-# SPDX-License-Identifier: AGPL-3.0-or-later
+# SPDX-License-Identifier: Apache-2.0
 from callusguard.telemetry.cc.models import parse_event, HookEnvelope, SessionStart, PreToolUse, PostToolUse
 
 

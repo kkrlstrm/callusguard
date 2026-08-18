@@ -1,5 +1,5 @@
 # Copyright (C) 2026 Kai Karlstrom
-# SPDX-License-Identifier: AGPL-3.0-or-later
+# SPDX-License-Identifier: Apache-2.0
 """Tool-name allowlist for PreToolUse/PostToolUse capture.
 
 Keeps volume sane by skipping Glob/Grep/TodoWrite/etc.

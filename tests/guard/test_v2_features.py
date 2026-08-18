@@ -53,11 +53,12 @@ class RegexLint(unittest.TestCase):
 
 
 class AuditEnrichment(unittest.TestCase):
-    def _drive(self, command, tool="Bash"):
+    def _drive(self, command, tool="Bash", extra=None):
         audit_path = tempfile.mktemp(suffix=".jsonl")
         env = dict(os.environ, AGENT_GUARD_AUDIT=audit_path)
         payload = {"tool_name": tool, "tool_input": {"command": command},
                    "session_id": "sess-123", "cwd": "/tmp/proj"}
+        payload.update(extra or {})
         subprocess.run([sys.executable, MAIN], input=json.dumps(payload),
                        capture_output=True, text=True, env=env)
         rows = [json.loads(l) for l in open(audit_path) if l.strip()]
@@ -72,6 +73,15 @@ class AuditEnrichment(unittest.TestCase):
             self.assertIn(key, ev)
         self.assertEqual(ev["session_id"], "sess-123")
 
+    def test_tool_use_id_is_recorded_as_the_telemetry_join_key(self):
+        """Without it, "did the nudge work?" can only ever be inferred from rates."""
+        rows = self._drive("psql -c 'SELECT 1'", extra={"tool_use_id": "toolu_abc123"})
+        self.assertEqual(rows[-1]["tool_use_id"], "toolu_abc123")
+
+    def test_absent_tool_use_id_is_omitted_not_nulled(self):
+        """A host that does not send one must not litter the log with nulls."""
+        self.assertNotIn("tool_use_id", self._drive("psql -c 'SELECT 1'")[-1])
+
     def test_secret_is_redacted_not_logged(self):
         secret = "AKIAIOSFODNN7EXAMPLE"
         rows = self._drive(f"AWS_KEY={secret} aws s3 ls")  # fires secret-inline nudge
@@ -79,6 +89,51 @@ class AuditEnrichment(unittest.TestCase):
         self.assertNotIn(secret, json.dumps(ev))          # raw secret never persisted
         self.assertIn("***", ev["command_preview"])        # but redacted preview kept
         self.assertEqual(len(ev["command_sha256"]), 64)    # hash gives exact identity
+
+
+class HostVersionPin(unittest.TestCase):
+    """The `block` guarantee is the host's, not ours, and it can change silently.
+
+    doctor must notice a drift — and must never turn one into a failed run, because a
+    host upgrade is normal and the guard still works on it.
+    """
+
+    def setUp(self):
+        from callusguard.guard import doctor
+        self.doctor = doctor
+        doctor._fails.clear()
+        doctor._warns.clear()
+
+    def _with_version(self, text, returncode=0):
+        from unittest import mock
+        result = subprocess.CompletedProcess([], returncode, stdout=text, stderr="")
+        return mock.patch.object(subprocess, "run", return_value=result)
+
+    def test_matching_version_passes_clean(self):
+        verified = self.doctor.VERIFIED_HOSTS["claude"]
+        with self._with_version("%s (Claude Code)\n" % verified):
+            self.doctor.check_hosts()
+        self.assertEqual(self.doctor._warns, [])
+        self.assertEqual(self.doctor._fails, [])
+
+    def test_drifted_version_warns_and_names_both(self):
+        with self._with_version("9.9.9 (Claude Code)\n"):
+            self.doctor.check_hosts()
+        self.assertEqual(len(self.doctor._warns), 1)
+        self.assertIn("9.9.9", self.doctor._warns[0])
+        self.assertIn(self.doctor.VERIFIED_HOSTS["claude"], self.doctor._warns[0])
+
+    def test_drift_is_never_a_hard_failure(self):
+        with self._with_version("9.9.9 (Claude Code)\n"):
+            self.doctor.check_hosts()
+        self.assertEqual(self.doctor._fails, [])
+
+    def test_absent_host_is_informational_only(self):
+        from unittest import mock
+        with mock.patch.object(subprocess, "run", side_effect=OSError):
+            self.doctor.check_hosts()
+        self.assertEqual(self.doctor._warns, [])
+        self.assertEqual(self.doctor._fails, [])
 
 
 class CLIs(unittest.TestCase):

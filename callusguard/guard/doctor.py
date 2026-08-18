@@ -124,6 +124,38 @@ def check_project(project):
                 "the firewall will NOT fire. Move it to .claude/agents/.")
 
 
+#: Host versions the `block` action's exit-2 semantics were last verified against.
+#: "exit 2 survives a parent's bypassPermissions" is a property of the HOST, not of
+#: this code — it can change in any host release, silently, with no error to catch it.
+#: Printing the installed version next to the verified one is the cheapest way to keep
+#: the strongest guarantee in the README from rotting unnoticed.
+VERIFIED_HOSTS = {"claude": "2.1.226"}
+
+
+def check_hosts():
+    """Report each installed host's version against the last-verified one."""
+    for binary, verified in sorted(VERIFIED_HOSTS.items()):
+        try:
+            proc = subprocess.run([binary, "--version"], capture_output=True,
+                                  text=True, timeout=10)
+        except (OSError, subprocess.SubprocessError):
+            info(f"{binary}: not on PATH — cannot check exit-2 semantics")
+            continue
+        if proc.returncode != 0:
+            info(f"{binary}: `--version` exited {proc.returncode}")
+            continue
+        found = proc.stdout.strip().split()[0] if proc.stdout.strip() else "?"
+        if found == verified:
+            ok(f"{binary} {found} — exit-2 block semantics verified on this version")
+        else:
+            # A warning, never a failure. A newer host is the normal case and the
+            # guard still works; what is unverified is specifically whether exit 2
+            # still overrides a parent's bypassPermissions.
+            warn(f"{binary} {found} — exit-2 block semantics were verified on "
+                 f"{verified}. `block` may degrade silently; re-check before relying "
+                 "on it as a hard stop.")
+
+
 def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--project", help="a project dir to check wiring in (.claude/settings.json)")
@@ -132,6 +164,8 @@ def main():
 
     print(f"agent-guard doctor — v{__version__}")
     info(f"python {sys.version.split()[0]}")
+    print("\nhosts:")
+    check_hosts()
     print("\nrulesets:")
     check_rulesets(args.rules or os.environ.get("AGENT_GUARD_RULES"))
     print("\nbehavior (real entry scripts):")

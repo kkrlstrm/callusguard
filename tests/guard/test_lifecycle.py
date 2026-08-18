@@ -170,5 +170,55 @@ class TestEmptyLogVersusAgedLog(LifecycleBase):
         self.assertEqual(self.verdict_for("a", data), L.PRUNE)
 
 
+class TestUndatedEvents(LifecycleBase):
+    """A pre-0.3 guard wrote verdicts with no `ts`. Those cannot be windowed.
+
+    Counting them is the correct fail-open choice — dropping them would invent a
+    prune signal out of missing metadata. Counting them *silently* is not: a real
+    97-day log of 1,914 undated verdicts rendered as "1916 verdict(s) in the last
+    30 days", which is an all-time number wearing a windowed label.
+    """
+
+    def _undated(self, rule_id, action="nudge"):
+        return {"tool": "Bash", "ruleset": "r.json", "fired": [rule_id],
+                "actions": [action], "decision": "allow"}
+
+    def test_undated_events_are_counted_not_dropped(self):
+        self.write_rules([{"id": "a", "action": "nudge", "message": "m"}])
+        self.write_audit([self._undated("a")])
+        data = L.report(self.ruleset, self.audit, window_days=30)
+        self.assertEqual(data["events_in_window"], 1)
+        self.assertEqual(self.verdict_for("a", data), L.KEEP)
+
+    def test_undated_events_are_reported_as_such(self):
+        self.write_rules([{"id": "a", "action": "nudge", "message": "m"}])
+        self.write_audit([self._undated("a") for _ in range(3)])
+        data = L.report(self.ruleset, self.audit, window_days=30)
+        self.assertEqual(data["undated_events"], 3)
+
+    def test_all_undated_log_is_labelled_all_time_not_windowed(self):
+        self.write_rules([{"id": "a", "action": "nudge", "message": "m"}])
+        self.write_audit([self._undated("a") for _ in range(3)])
+        out = L.render(L.report(self.ruleset, self.audit, window_days=30))
+        self.assertIn("ALL-TIME", out)
+        self.assertNotIn("3 verdict(s) in the last 30 days", out)
+
+    def test_mixed_log_names_the_undated_share(self):
+        self.write_rules([{"id": "a", "action": "nudge", "message": "m"}])
+        self.write_audit([_event("a", "nudge", 1), self._undated("a")])
+        data = L.report(self.ruleset, self.audit, window_days=30)
+        self.assertEqual(data["events_in_window"], 2)
+        self.assertEqual(data["undated_events"], 1)
+        out = L.render(data)
+        self.assertIn("1 of them undated", out)
+
+    def test_fully_dated_log_carries_no_warning(self):
+        self.write_rules([{"id": "a", "action": "nudge", "message": "m"}])
+        self.write_audit([_event("a", "nudge", 1)])
+        data = L.report(self.ruleset, self.audit, window_days=30)
+        self.assertEqual(data["undated_events"], 0)
+        self.assertNotIn("carry no `ts`", L.render(data))
+
+
 if __name__ == "__main__":
     unittest.main()

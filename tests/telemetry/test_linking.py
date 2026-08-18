@@ -1,5 +1,5 @@
 # Copyright (C) 2026 Kai Karlstrom
-# SPDX-License-Identifier: AGPL-3.0-or-later
+# SPDX-License-Identifier: Apache-2.0
 """Tests for linking.resolve_parent.
 
 These use psycopg + a real Postgres if DATABASE_URL is set; otherwise they're

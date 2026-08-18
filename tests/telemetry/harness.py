@@ -1,5 +1,5 @@
 # Copyright (C) 2026 Kai Karlstrom
-# SPDX-License-Identifier: AGPL-3.0-or-later
+# SPDX-License-Identifier: Apache-2.0
 """End-to-end test harness.
 
 Boots the FastAPI app in-process, POSTs a realistic simulated session

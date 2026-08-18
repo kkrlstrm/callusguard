@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 # Copyright (C) 2026 Kai Karlstrom
-# SPDX-License-Identifier: AGPL-3.0-or-later
+# SPDX-License-Identifier: Apache-2.0
 """Backfill session model + token usage for already-captured sessions.
 
 Why this exists: neither the model nor token totals come from the hook stream

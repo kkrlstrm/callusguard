@@ -1,5 +1,5 @@
 # Copyright (C) 2026 Kai Karlstrom
-# SPDX-License-Identifier: AGPL-3.0-or-later
+# SPDX-License-Identifier: Apache-2.0
 """Regex-based redaction of common secret patterns.
 
 Applied to tool_input and tool_response BEFORE they're written to the DB

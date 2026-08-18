@@ -1,8 +1,5 @@
 # callusguard
 
-<!-- portfolio-status -->
-**Status:** Production-derived — merged from five repos I run against my own live agent workflows. · **Layer:** Execution controls · **[Portfolio map ›](https://github.com/kkrlstrm)**
-
 **Guardrails that earn their place.**
 
 callusguard turns repeated Claude Code and Codex failures into reviewed controls,
@@ -80,7 +77,134 @@ $ callus scope verify --run-id archref-2026-08-14
 That baseline is captured **per invocation and never committed**, which is what lets
 it catch a break in a file the agent never opened.
 
-## Try the whole loop in ten seconds
+**Status, plainly:** the guard half below has 97 days of production evidence. The
+scope half has none — it is wired, tested, and demonstrated, but it has not yet run
+unattended against a real job. Do not read the numbers in the next section as
+covering it.
+
+---
+
+## What derivation actually does — and what it does not
+
+`derive` is a **frequency counter with a template**. It is worth being exact about
+this, because "guards derived from evidence" invites the reader to imagine something
+smarter than what is here.
+
+It groups failed tool calls by `(tool_name, normalized error signature)` — digits
+collapsed to `#`, quoted strings to `'S'`, whitespace squeezed — counts each cluster,
+and for Bash emits a candidate whose pattern is **the first token or two of the
+sample command**. Non-Bash tools aggregate to one candidate per tool surface. That
+is the whole algorithm; it is ~120 lines and you should read it.
+
+**It does not generalize.** It cannot tell which part of a command caused the
+failure, cannot widen a pattern to catch the next variant, and cannot narrow one that
+would catch everything. Over 97 days of real telemetry it proposed candidates whose
+patterns were `\bcd\b`, `\bset\b`, `\bfor\b`, and `\bpython3\b` — clusters that are
+real and rules that are worthless.
+
+The generalizing step is human, and the diff is the point:
+
+| what derive proposed | what got promoted |
+|---|---|
+| `\bpython3\s+scripts/page\-digest\.py\b` | `page-digest\.py\b(?!.*--entity)` |
+| `\bpsql\b` | `(?:^\|[;\|&(]\|\$\()\s*(?:[A-Za-z_]\w*=\S*\s+)*psql\b` |
+| `\bsleep\b` | `\b(?:for\|while)\b[\s\S]{0,400}?\bsleep\s+\d` |
+
+Each promoted regex encodes something the counter had no access to: that the failure
+is the *absence* of a flag, that a leading env assignment still counts as a bare
+invocation, that the problem is a poll loop rather than a sleep.
+
+**So the honest claim is narrower and, I think, more useful: derivation allocates
+reviewer attention.** It finds the clusters worth 60 seconds of a human's time and
+attaches the evidence — count, window, sample command, sample error — to each one. It
+lands every candidate as `monitor`, armed at nothing. The rule shape is yours to
+write. What the tool guarantees is that you are writing rules about things that
+actually happened, at a rate you can sustain.
+
+## The numbers
+
+From a cc-logger database over **2026-05-13 → 2026-08-18 (97 days)**: 3,974 sessions,
+134,068 tool calls, 6,012 failures (4.5%). Enforcement over the same period: **1,920
+verdicts — 1,295 nudges, 624 monitor-only allows, 1 deny, 0 blocks.**
+
+Regenerate all of it against your own database:
+
+```bash
+python3 scripts/evidence-report.py --db-url "$NEON_CC_LOGGER_URL" \
+    --ruleset path/to/your/live.rules.json --since 2026-05-13 --until 2026-08-18
+```
+
+### The funnel
+
+Derivation replayed one 7-day window at a time, exactly as a weekly review would run it:
+
+| | |
+|---|---|
+| Candidate rules proposed | **136** (131 unique) across 14 windows |
+| Promoted into the live ruleset | **12** |
+| Promotion rate | **9%** |
+| Promoted rules that have never fired | 1 of 13 |
+
+Two of the fourteen windows proposed nothing at all. The 9% is not a defect — it is
+the monitor rung doing its job, and it is the number I would want to see before
+trusting anyone's "rules derived from evidence." A tool that promoted most of what it
+proposed would be one that had stopped filtering.
+
+(13 rules are live; 12 came from telemetry. The 13th was authored from a design
+principle and is excluded from the numerator, which is why `evidence-report.py`
+prints it separately.)
+
+### Did promotion change anything
+
+Failure rate among **matching** Bash attempts, split at each rule's promotion date:
+
+| Rule | Before | After | Attempts |
+|---|---|---|---|
+| `page-digest-missing-entity` | 19.1% | **1.4%** | 131 → 142 |
+| `bash-busywait-poll-loop` | 11.5% | **3.2%** | 139 → 94 |
+| `shell-source-dotenv` | 16.1% | **8.6%** | 249 → 440 |
+| `curl-page-scrape-spoofed-ua` | 2.0% | **0.0%** | 653 → 215 |
+| `bash-sleep-chained-command` | 2.4% | 0.0% | 82 → 23 |
+| `bare-psql-no-target` | 7.6% | 19.0% | **980 → 174** |
+| `phoneburner-db-hand-rolled` | 11.4% | 20.0% | 220 → 20 |
+| `macos-timeout-not-installed` | 26.2% | 26.8% | 42 → 82 |
+| `page-digest-dead-domain-retry` | 7.0% | **17.3%** | 1553 → 1746 |
+
+**Read the attempt counts, not just the rates.** `bare-psql-no-target` looks like a
+regression until you notice attempts collapsed from 980 to 174: the nudge did not make
+bare `psql` succeed, it made agents stop reaching for it. What remains is the residual
+hard cases, at a higher rate. The behaviour changed; the rate metric hides that, and
+a report that showed only rates would have called a win a loss.
+
+**These denominators are not controlled.** Usage volume shifts, the tool surface an
+agent reaches for changes *because* of the nudge, and a rule only affects attempts
+that come after it. This is correlation over time. The rigorous version needs
+`tool_use_id` on the audit event — added in 0.4.0 — joined to the recorder's
+`tool_call_id`, so a single nudged call can be followed to its own outcome. That data
+is only now accumulating.
+
+### The two that went the wrong way
+
+A repo that publishes only its wins is asking to be taken on faith, so:
+
+**`macos-timeout-not-installed` does nothing.** 26.2% → 26.8% across 82 post-promotion
+attempts. The nudge fires, the agent reads it, and the failure rate is unmoved. On the
+lifecycle report it sits in REVIEW, which is the correct verdict for the wrong reason —
+it is not "enforcement works but the workflow is unfixed," it is a rule that has never
+demonstrably helped. It should be rewritten or pruned.
+
+**`page-digest-dead-domain-retry` caused failures.** 7.0% → 17.3%. Its own
+`meta.why` records the cause: the nudge message named a `--waterfall` flag that did
+not exist, so agents that followed the advice exited 2. A guard that fires 1,057
+times, more than every other rule combined, and hands out a wrong flag is worse than
+no guard. It was caught by this same loop and the message was fixed; the tail is still
+in the numbers above.
+
+That is the case for the `monitor` rung existing at all. Both of these were `nudge` —
+advisory, recoverable, and survivable. Neither was a `block`. The graded-outcome table
+below is not decoration.
+
+## Try the pipeline in ten seconds
 
 ```bash
 git clone https://github.com/kkrlstrm/callusguard.git && cd callusguard
@@ -92,10 +216,11 @@ through **record → derive → review → guard → audit → prune**, then run
 check, and writes only to a temp directory it deletes on exit. Your real audit log and
 rulesets are never touched.
 
-The trace is synthetic — shaped after the failure pattern behind one of the shipped
-starter rules, not a dump of anyone's session. What is real is every artifact it
-produces: the derived rule, the exit-2 block, the hash-chained audit entry, the prune
-verdict.
+**This is a pipeline smoke test, not evidence.** The trace is synthetic and produces
+one rule; what it proves is that the stages connect and every artifact is real — the
+derived rule, the exit-2 block, the hash-chained audit entry, the prune verdict. For
+evidence that derivation is worth running, read [the funnel](#the-funnel) above; that
+is measured against 97 days of production telemetry.
 
 ## Install
 
@@ -161,6 +286,28 @@ as a SHA-256 plus a secret-redacted preview, never verbatim.
 > **A guard bug must never wedge a session** — every path falls open on an internal
 > error. The only thing allowed to stop your agent is a decision, not a crash.
 
+**Version pin for the `block` claim.** "Exit 2 survives a parent's
+`bypassPermissions`" is a statement about Claude Code's PreToolUse hook semantics, not
+a property of this code — it is verified against **Claude Code 2.1.226** and Codex CLI
+rollout-hook behaviour as of **2026-08-18**. Anthropic can change it in a release, and
+if they do, your strongest guarantee degrades with no error message.
+
+So the pin is enforced rather than written down: `callus guard doctor` reads the
+installed host's version and warns when it differs from the verified one.
+
+```console
+$ callus guard doctor
+hosts:
+  ✓ claude 2.1.226 — exit-2 block semantics verified on this version
+```
+
+A newer host is a warning, never a failure — the guard still works; what becomes
+unverified is specifically whether `block` still overrides a parent's
+`bypassPermissions`. Re-check before relying on it as a hard stop.
+
+The other three outcomes rest on documented, stable interfaces (`additionalContext`,
+`permissionDecision`) and are far less exposed to this.
+
 ## Where this sits next to other tools
 
 callusguard is deliberately narrow. It is **not** a general policy platform, a
@@ -181,14 +328,21 @@ we retire it.*
 ## Tests
 
 ```bash
-python3 -m unittest discover -s tests/guard     -p 'test_*.py'   # 89
+python3 -m unittest discover -s tests/guard     -p 'test_*.py'   # 102
 python3 -m unittest discover -s tests/wroteonly -p 'test_*.py'   # 64
 python3 -m unittest tests.test_dependency_wall                    #  3
-python3 -m pytest tests/telemetry -q                              # 62
+python3 -m pytest tests/telemetry -q                              # 62 (+3 async)
 ```
 
-All 202 tests from the five predecessor repos were ported **unchanged** and still
-pass — only import paths were rewritten. That is the evidence behaviour was preserved.
+The three async telemetry tests need `pip install 'callusguard[dev]'` for
+`pytest-asyncio`; without it they error rather than fail quietly.
+
+All 202 tests from the five predecessor repos were ported **unchanged** — only import
+paths were rewritten. [MERGE.md](MERGE.md) gives the per-repo breakdown
+(agent-guard 64, codex-guard 12, wroteonly 64, codex-logger 8, cc-logger 54). Fair
+warning on how checkable that is: this repo's history begins at the merge, so you
+cannot verify the "unchanged" part from these commits alone. Publishing the
+predecessors read-only is the fix, and it has not happened yet.
 
 ## Docs
 
@@ -208,17 +362,7 @@ Shrinking is the tool working, not rotting.
 
 ## License
 
-GNU AGPL-3.0 — see [LICENSE](LICENSE). Copyright (C) 2026 Kai Karlstrom.
+Apache-2.0 — see [LICENSE](LICENSE) and [NOTICE](NOTICE).
+Copyright (C) 2026 Kai Karlstrom.
 
----
-
-<!-- portfolio-footer -->
-## Where this fits
-
-Part of a portfolio of **governed, AI-native GTM systems** — reference implementations and reusable patterns extracted from a private production stack. In that system this is the operational memory that turns observed agent failures into runtime guarantees.
-
-**Full portfolio map → [github.com/kkrlstrm](https://github.com/kkrlstrm)**
-
-Works with:
-- [model-eval-gate](https://github.com/kkrlstrm/model-eval-gate) — the policy gate for delegating work to a cheaper model
-- [agent-tenancy](https://github.com/kkrlstrm/agent-tenancy) — resolves the tenant before the agent runs, so routing never depends on the model
+Relicensed from AGPL-3.0 in 0.4.0; the reasoning is in [NOTICE](NOTICE).

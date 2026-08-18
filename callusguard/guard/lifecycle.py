@@ -153,11 +153,30 @@ def report(ruleset_path: str, audit_path: str, window_days: int = 30) -> dict:
                                        signal, and it deserves no caveat.
 
     `audit_readable` distinguishes them.
+
+    AND A THIRD, WHICH USED TO LIE
+        An event with no `ts` cannot be windowed. Dropping it would invent a prune
+        signal out of missing metadata, so it is counted — the fail-open choice, and
+        the right one. But it was counted *silently*: a log written by a pre-0.3
+        guard (which emitted no `ts`) produced a report headed "N verdicts in the
+        last 30 days" over events spanning months. The number was all-time and said
+        otherwise.
+
+        Undated events are still counted, and now `undated_events` says how many, so
+        the caller can tell a windowed number from an all-time one. Silent
+        degradation of the strongest claim in the report is exactly the failure this
+        tool exists to catch.
     """
     since = datetime.now(timezone.utc) - timedelta(days=window_days)
     all_events = read_audit(audit_path)          # unwindowed: did the log say anything?
-    events = [e for e in all_events
-              if not _parse_ts(e.get("ts")) or _parse_ts(e.get("ts")) >= since]
+    events, undated = [], 0
+    for event in all_events:
+        stamp = _parse_ts(event.get("ts"))
+        if stamp is None:
+            undated += 1
+            events.append(event)                 # count it, but say so below
+        elif stamp >= since:
+            events.append(event)
     stats = tally(events)
     rules = load_rules(ruleset_path)
 
@@ -185,6 +204,7 @@ def report(ruleset_path: str, audit_path: str, window_days: int = 30) -> dict:
         "window_days": window_days,
         "events_in_window": len(events),
         "events_total": len(all_events),
+        "undated_events": undated,
         "audit_readable": bool(all_events),
         "rules": rows,
         # Rules that fired but are no longer in the ruleset — usually a rename or a
@@ -201,10 +221,29 @@ GLYPH = {PRUNE: "✂", PROMOTE: "▲", REVIEW: "⚠", KEEP: "✓"}
 def render(data: dict) -> str:
     lines = []
     counts = data["counts"]
+    undated = data.get("undated_events", 0)
     lines.append("rule lifecycle — %s" % os.path.basename(data["ruleset"]))
-    lines.append("  %d verdict(s) in the last %d days"
-                 % (data["events_in_window"], data["window_days"]))
+    if undated and undated >= data["events_in_window"]:
+        # Nothing here is windowed. Say the true thing, not the pretty one.
+        lines.append("  %d verdict(s), ALL-TIME — no verdict carries a timestamp, so "
+                     "the %d-day window could not be applied"
+                     % (data["events_in_window"], data["window_days"]))
+    elif undated:
+        lines.append("  %d verdict(s) in the last %d days — %d of them undated and "
+                     "therefore not windowed"
+                     % (data["events_in_window"], data["window_days"], undated))
+    else:
+        lines.append("  %d verdict(s) in the last %d days"
+                     % (data["events_in_window"], data["window_days"]))
     lines.append("")
+
+    if undated:
+        lines.append("  ⚠ %d verdict(s) carry no `ts` and were counted regardless — "
+                     "dropping them" % undated)
+        lines.append("    would invent a prune signal out of missing metadata. They are")
+        lines.append("    almost certainly from a pre-0.3 guard; re-check any prune")
+        lines.append("    verdict below against a log that timestamps its events.")
+        lines.append("")
 
     if not data.get("audit_readable"):
         lines.append("  ⚠ No readable audit log. Every rule below reads as a prune")

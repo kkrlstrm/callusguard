@@ -151,6 +151,14 @@ def run(ruleset_path=None, load_rules_fn=None, host=None, stdin=None,
                 }
                 if data.get("session_id"):
                     event["session_id"] = data["session_id"]
+                # The join key back to telemetry. A recorder keyed on the host's
+                # tool-call id (cc-logger's `tool_calls.tool_call_id`) can now be
+                # joined to the verdict that preceded it — which is the only way to
+                # answer "did the nudge work?" by measurement rather than inference.
+                # Without it you can correlate a rule and a failure rate over time;
+                # with it you can follow one nudged call to its outcome.
+                if data.get("tool_use_id"):
+                    event["tool_use_id"] = data["tool_use_id"]
                 if data.get("cwd"):
                     event["cwd"] = data["cwd"]
                 if cmd:

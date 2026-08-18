@@ -1,5 +1,5 @@
 # Copyright (C) 2026 Kai Karlstrom
-# SPDX-License-Identifier: AGPL-3.0-or-later
+# SPDX-License-Identifier: Apache-2.0
 """Subagent → parent Agent tool_call resolution.
 
 Claude Code doesn't tell us which Agent tool_call spawned a given SubagentStart.
