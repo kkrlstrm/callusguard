@@ -18,8 +18,14 @@ THE FOUR VERDICTS ON A RULE
                working) or it never matched anything real (delete it — it was
                written from imagination).
 
-    promote    a `monitor` rule firing repeatedly. It has evidence now. This is the
-               staging rung graduating to nudge or block.
+    promote    a `monitor` rule firing repeatedly AND carrying a tier strong enough
+               to act on. It has evidence now. This is the staging rung graduating
+               to nudge or block — no further than its tier's ceiling.
+
+               A rule that fires often but grades `probabilistic` stays a `keep`:
+               how often a pattern matches and how often the matched command fails
+               are two different measurements, and only the second is grounds for
+               enforcement.
 
     review     a `nudge`/`deny`/`block` rule firing very often. Enforcement is
                working, but a guard that fires constantly is a workflow that has not
@@ -43,6 +49,8 @@ from __future__ import annotations
 import json
 import os
 from datetime import datetime, timedelta, timezone
+
+from ..core import tiers
 
 PRUNE = "prune"
 PROMOTE = "promote"
@@ -123,6 +131,7 @@ def tally(events: list) -> dict:
 def classify(rule: dict, stat: dict | None, window_days: int) -> tuple:
     """Return (verdict, reason) for one rule."""
     declared = rule.get("action", "nudge")
+    tier = (rule.get("meta") or {}).get("tier")
 
     if not stat or not stat["count"]:
         return PRUNE, ("never fired in the last %d days — either the failure was "
@@ -131,8 +140,25 @@ def classify(rule: dict, stat: dict | None, window_days: int) -> tuple:
 
     count = stat["count"]
     if declared == "monitor" and count >= PROMOTE_AFTER:
+        # FIRING COUNT IS NOT FAILURE RATE, AND THIS IS WHERE CONFLATING THEM COSTS.
+        #
+        # `count` is how many times the PATTERN MATCHED. The tier is how often the
+        # matched command actually FAILED. A rule can match fifty commands that all
+        # succeeded — busy, not broken — and the old promote-at-5 rung read that as
+        # earned evidence for a block.
+        #
+        # So a monitor rule graduates on its tier, not on its popularity. Without a
+        # tier (hand-written, or derived before tiering existed) the old behaviour
+        # stands: promotion is proposed and the human decides, which is what that
+        # rung has always meant.
+        if tier and tier not in tiers.PROMOTABLE:
+            return KEEP, ("fired %d times, but its evidence is %s (%s) — firing "
+                          "often is not the same as failing reliably; stay at monitor "
+                          "until the failure rate earns more"
+                          % (count, tier, tiers.ONE_LINER.get(tier, tier)))
+        ceiling = tiers.ceiling(tier) if tier else "block"
         return PROMOTE, ("fired %d times as monitor-only — it has evidence now; "
-                         "promote to nudge or block" % count)
+                         "promote to at most %s" % (count, ceiling))
     if declared != "monitor" and count > REVIEW_ABOVE:
         return REVIEW, ("fired %d times — enforcement works, but a guard firing this "
                         "often is a workflow that has not been fixed; consider making "

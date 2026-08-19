@@ -25,6 +25,8 @@ Actions:
 import re
 import fnmatch
 
+from ..core import tiers
+
 # Higher rank = more restrictive; used to break severity ties.
 ACTION_RANK = {"monitor": 0, "nudge": 1, "deny": 2, "block": 3}
 
@@ -155,6 +157,24 @@ def verify_rules(rules):
                 re.compile(p)
             except re.error as e:
                 problems.append(f"{rid}: bad regex {p!r}: {e}")
+
+        # Tier ceiling. A rule derived from telemetry carries how reliably its
+        # failure actually repeated; that grade caps how restrictive the rule may
+        # become. Checked here so `guard check` and `guard doctor` refuse a ruleset
+        # whose enforcement outran its evidence — a `block` promoted from a
+        # coin-flip fails review instead of shipping.
+        #
+        # Only rules that CARRY a tier are checked. A hand-written rule has no
+        # telemetry behind it and is governed by review, not by this rule; silently
+        # capping it at monitor would break every shipped ruleset in the repo.
+        tier = (r.get("meta") or {}).get("tier")
+        if tier and action in ACTION_RANK:
+            cap = tiers.ceiling(tier)
+            if ACTION_RANK[action] > ACTION_RANK.get(cap, 0):
+                problems.append(
+                    f"{rid}: action {action!r} exceeds the ceiling for tier "
+                    f"{tier!r} ({cap!r}) — {tiers.ONE_LINER.get(tier, tier)}. "
+                    "Either gather more evidence or lower the action.")
     return problems
 
 

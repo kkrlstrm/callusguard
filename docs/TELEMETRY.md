@@ -35,6 +35,32 @@ You can also run the query by hand to eyeball the clusters first:
 psql "$NEON_CC_LOGGER_URL" -f sql/recurring_failures.sql
 ```
 
+### The denominator, and why the query reads successes too
+
+The query returns `attempt_count` next to `fail_count`: every *settled* call of the
+same command shape, successes included. `core/tiers.py` turns the pair into a tier
+that caps how far the resulting rule may ever be armed — see the table in the
+README. `--min-attempts N` moves the anecdotal floor (default 5); `--keep-anecdotal`
+shows the thin clusters instead of withholding them.
+
+Two details worth knowing before you tune it:
+
+- **The denominator clusters on command *shape*, not on the error signature.** A
+  successful call has no error to key on, so it cannot share the failure key. Bash
+  shapes to its first real token after any `VAR=val` prefixes, plus the subcommand
+  for known multiplexers — `git push`, not `git`, and `PGPASSWORD=x /usr/bin/psql`
+  shapes to `psql`. Other tools shape to the tool, with MCP collapsed to its server
+  surface. This is mirrored by `command_shape()` in `rules.py`; **if you change one,
+  change both**, or the two input modes will grade the same workload differently.
+- **`pending` and `orphaned` calls are not attempts.** They are not evidence in
+  either direction, and counting them would deflate every failure rate.
+
+The `--from-log` JSONL path computes the same denominator from the same file — but a
+log that was already filtered down to failures has no successes to count, which would
+hand every cluster a fabricated 100% failure rate. That case is detected: with no
+successful call anywhere in the file, no denominator is supplied at all, every cluster
+grades `unknown` (capped at a nudge), and a note says so on stderr.
+
 ### Read-only and context tools are skipped
 
 A logger may capture tools that exist for *attribution* rather than for action —

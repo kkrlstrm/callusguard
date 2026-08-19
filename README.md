@@ -18,8 +18,9 @@ rule **over its life**.
 
 ```
   a failure happens          →  recorded, with its exit code and error
-  it happens 3 more times    →  proposed as a rule, monitor-only, NOT armed
-  you review the evidence    →  promoted to nudge, or to a hard block
+  it keeps happening         →  graded against how often it was TRIED, not just counted
+  the rate earns a tier      →  proposed as a rule, monitor-only, NOT armed
+  you review the evidence    →  promoted — no further than that tier allows
   the workflow gets fixed    →  the rule stops firing
   30 days quiet              →  flagged for pruning. deleting it is the tool working
 ```
@@ -27,6 +28,38 @@ rule **over its life**.
 That is `record → derive → guard → verify → prune`, and the last step is the one
 that makes the rest trustworthy. **A rule library that only grows is one nobody
 trusts** — every stale rule is latency on every tool call and noise in every review.
+
+### The denominator
+
+A failure count on its own cannot tell a broken command from a busy one. Three
+failures out of three attempts and three out of three hundred are the same number
+and opposite facts, and every threshold in this loop used to run on the first
+number alone.
+
+So each cluster is now graded against how many times it was actually tried — the
+successes were always in the telemetry, they were simply never queried:
+
+| tier | rate, over ≥5 attempts | may be armed as far as |
+|---|---|---|
+| `deterministic` | ≥ 95% — never really worked | `block` |
+| `reproducible` | ≥ 50% — fails most times | `deny` |
+| `probabilistic` | < 50% — usually works | `nudge` |
+| `anecdotal` | too few attempts, at any rate | **not proposed at all** |
+| `unknown` | no denominator available | `nudge` |
+
+The ceiling is enforced, not advisory: `callus guard check` refuses a ruleset whose
+action outran its evidence, so a `block` promoted from a coin-flip fails review
+instead of shipping. `anecdotal` is what replaces the old rule of thumb that three
+failures earn a guard — and withheld clusters are always reported, so "nothing to
+propose" can never hide "eight things too thin to grade."
+
+The same distinction governs promotion. A monitor rule used to graduate on how many
+times it *fired*, but a pattern matching fifty commands that all succeeded is busy,
+not broken — so `guard prune` now promotes on the failure rate, not the popularity.
+
+One caveat, stated wherever a tier is displayed: this is an **observational** rate
+over the traffic that happened to run, not an experimental one. Nothing here re-ran
+anything under controlled conditions. Read a tier as a prior, not a proof.
 
 ### One incident, end to end
 
