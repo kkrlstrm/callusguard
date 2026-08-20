@@ -18,7 +18,7 @@ THE DEPENDENCY WALL
     `callusguard.telemetry`, which is an optional extra. A CI job enforces the split.
 """
 
-__version__ = "0.4.0"
+__version__ = "0.5.0"
 
 #: Bumped from agent-guard's 0.2.0 — the audit records a `version`, and it must keep
 #: moving forward across the merge so a chain spanning the change is still ordered.
