@@ -388,7 +388,17 @@ predecessors read-only is the fix, and it has not happened yet.
 - [docs/THREAT_MODEL.md](docs/THREAT_MODEL.md) — what this does and does not defend against
 - [docs/TELEMETRY.md](docs/TELEMETRY.md) — what is captured, and what is redacted
 - [docs/wroteonly.md](docs/wroteonly.md) — declared-write-set verification in depth
+- [SECURITY.md](SECURITY.md) — how to report a vulnerability, and what counts as one
+- [CHANGELOG.md](CHANGELOG.md) — release history, including the AGPL → Apache-2.0 move
 - [MERGE.md](MERGE.md) — how five repos became one, and what was deliberately left apart
+
+**This repository guards itself.** [`.claude/settings.json`](.claude/settings.json) wires
+the `PreToolUse` guard over this checkout using the shipped starter ruleset — the same
+thing a new adopter gets, with no repo-specific rules hand-written on top, because rules
+here should be earned from telemetry like anyone else's. It paid for itself on day one:
+wiring it surfaced that `doctor --project` could not detect the wiring `install.py`
+writes, so the one command the threat model names for *"confirm the hook is actually
+installed"* was reporting a protected project as unprotected.
 
 ## Why "callus"
 

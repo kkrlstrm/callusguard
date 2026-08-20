@@ -63,6 +63,8 @@ wroteonly = "callusguard.wroteonly.cli:main"
 Homepage = "https://github.com/kkrlstrm/callusguard"
 Repository = "https://github.com/kkrlstrm/callusguard"
 Issues = "https://github.com/kkrlstrm/callusguard/issues"
+Changelog = "https://github.com/kkrlstrm/callusguard/blob/main/CHANGELOG.md"
+Security = "https://github.com/kkrlstrm/callusguard/blob/main/SECURITY.md"
 
 [tool.hatch.build.targets.wheel]
 packages = ["callusguard"]

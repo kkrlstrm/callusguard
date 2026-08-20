@@ -106,5 +106,41 @@ class TestTopLevelSurface(unittest.TestCase):
         self.assertIn("pip install", proc.stderr)
 
 
+class TestReleaseVersion(unittest.TestCase):
+    """The release version has two homes and must never drift between them.
+
+    `pyproject.toml` decides what PyPI serves; `callusguard.__version__` is stamped
+    into every audit event by `guard/runner.py`. If they disagree, an audit chain
+    claims a version that was never released, and nothing surfaces the mismatch until
+    someone reads a log and cannot reconcile it against a package. Bump both or neither.
+    """
+
+    @staticmethod
+    def _pyproject_version():
+        path = os.path.join(REPO, "pyproject.toml")
+        try:                                   # 3.11+
+            import tomllib
+            with open(path, "rb") as fh:
+                return tomllib.load(fh)["project"]["version"]
+        except ImportError:                    # 3.9 / 3.10 — both are in the CI matrix
+            with open(path) as fh:
+                for line in fh:
+                    m = re.match(r'\s*version\s*=\s*["\'](.+?)["\']', line)
+                    if m:
+                        return m.group(1)
+        raise AssertionError("no [project] version found in pyproject.toml")
+
+    def test_pyproject_and_dunder_version_agree(self):
+        from callusguard import __version__
+        self.assertEqual(
+            self._pyproject_version(), __version__,
+            "pyproject.toml and callusguard.__version__ disagree — bump both together; "
+            "the audit log records __version__ and PyPI serves the other.")
+
+    def test_version_is_a_plain_release(self):
+        """A stray suffix quietly changes what `pip install callusguard` resolves to."""
+        self.assertRegex(self._pyproject_version(), r"^\d+\.\d+\.\d+$")
+
+
 if __name__ == "__main__":
     unittest.main()

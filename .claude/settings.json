@@ -1,0 +1,32 @@
+{
+  "_doc": [
+    "callusguard guarding its own repository. Project-level, committed, so anyone who",
+    "opens this repo in Claude Code gets the same screening the tool ships to everyone",
+    "else — and so a change that breaks the hook fails here first.",
+    "",
+    "The ruleset is deliberately NOT overridden: with no AGENT_GUARD_RULES set, the hook",
+    "falls through to callusguard/guard/rules/starter.rules.json, which is exactly what a",
+    "new adopter runs. Repo-specific rules belong here only once telemetry has earned",
+    "them; hand-writing a set would be the imagination this tool exists to replace.",
+    "",
+    "Behaviour is fail-open by design (see docs/THREAT_MODEL.md): any error in the hook",
+    "exits 0 and the tool call proceeds. This cannot wedge a session.",
+    "",
+    "The recorder is not wired here — it needs Postgres and a running server. See",
+    "docs/TELEMETRY.md, and examples/settings-hooks.json for the recorder's own block."
+  ],
+  "hooks": {
+    "PreToolUse": [
+      {
+        "matcher": "Bash|apply_patch|Edit|MultiEdit|Write|NotebookEdit|mcp__.*",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "python3 \"$CLAUDE_PROJECT_DIR/bin/guard-hook.py\"",
+            "timeout": 15
+          }
+        ]
+      }
+    ]
+  }
+}

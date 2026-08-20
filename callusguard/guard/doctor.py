@@ -98,6 +98,15 @@ def check_audit():
         (ok if good else bad)(f"audit chain intact" if good else f"audit chain broken at line {line}")
 
 
+#: Every basename that is a legitimate PreToolUse guard entry point. `install.py` writes
+#: `guard-hook.py`; `pretooluse-guard.py` is the pre-merge name kept as an alias, and a
+#: hand-wired project may reference either. Detecting only one of them made `doctor`
+#: report a correctly installed guard as missing — the check that THREAT_MODEL points at
+#: for "disabled or unwired hooks" was the check that could not see a real installation.
+#: Add a name here whenever an entry script is added, or this silently under-reports.
+GUARD_ENTRY_SCRIPTS = ("guard-hook.py", "pretooluse-guard.py")
+
+
 def check_project(project):
     settings = os.path.join(project, ".claude", "settings.json")
     if not os.path.exists(settings):
@@ -109,10 +118,13 @@ def check_project(project):
         bad(f"{settings} does not parse ({e})")
         return
     hooks = [h for entry in s.get("hooks", {}).get("PreToolUse", []) for h in entry.get("hooks", [])]
-    if any("pretooluse-guard.py" in h.get("command", "") for h in hooks):
-        ok("main guard wired in .claude/settings.json")
+    found = next((script for h in hooks for script in GUARD_ENTRY_SCRIPTS
+                  if script in h.get("command", "")), None)
+    if found:
+        ok(f"main guard wired in .claude/settings.json ({found})")
     else:
-        warn("main guard NOT found in .claude/settings.json (run install.sh)")
+        warn("main guard NOT found in .claude/settings.json "
+             "(run `python3 install.py`)")
 
     agent = os.path.join(project, ".claude", "agents", "db-reader.md")
     if os.path.exists(agent):

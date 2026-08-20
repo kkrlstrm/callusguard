@@ -163,5 +163,72 @@ class CLIs(unittest.TestCase):
         self.assertIn("HEALTHY", proc.stdout)
 
 
+class TestDoctorDetectsRealWiring(unittest.TestCase):
+    """`doctor --project` must recognise the wiring `install.py` actually writes.
+
+    It did not. `check_project` matched only `pretooluse-guard.py` while the installer
+    writes `guard-hook.py`, so a correct install was reported as "guard NOT found" —
+    and the remedy it printed, `install.sh`, is not a file in this repo. THREAT_MODEL
+    names this command as the mitigation for "disabled or unwired hooks", which makes a
+    false negative here the worst kind: the verification step tells a protected user
+    they are unprotected.
+
+    These tests build the settings document from the installer's own HOOKS spec rather
+    than a copied literal, so adding an entry script without teaching doctor about it
+    fails here.
+    """
+
+    def setUp(self):
+        from callusguard.guard import doctor
+        self.doctor = doctor
+        doctor._fails.clear()
+        doctor._warns.clear()
+        doctor._oks.clear() if hasattr(doctor, "_oks") else None
+
+    @staticmethod
+    def _project_with(command):
+        import json
+        import tempfile
+        root = tempfile.mkdtemp(prefix="doctor-wiring-")
+        os.makedirs(os.path.join(root, ".claude"))
+        with open(os.path.join(root, ".claude", "settings.json"), "w") as fh:
+            json.dump({"hooks": {"PreToolUse": [
+                {"matcher": "Bash|Edit|Write",
+                 "hooks": [{"type": "command", "command": command}]}]}}, fh)
+        return root
+
+    def _installer_guard_script(self):
+        """The guard entry script `install.py` wires, read from the installer itself."""
+        import importlib.util
+        repo = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+        spec = importlib.util.spec_from_file_location(
+            "_installer", os.path.join(repo, "install.py"))
+        mod = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(mod)
+        return os.path.basename(mod.HOOKS["guard"]["script"])
+
+    def test_detects_the_script_the_installer_writes(self):
+        script = self._installer_guard_script()
+        self.assertIn(script, self.doctor.GUARD_ENTRY_SCRIPTS,
+                      "install.py wires %r but doctor does not recognise it" % script)
+        root = self._project_with('python3 "/somewhere/bin/%s"' % script)
+        self.doctor.check_project(root)
+        self.assertEqual(self.doctor._warns, [], "correct wiring reported as missing")
+        self.assertEqual(self.doctor._fails, [])
+
+    def test_detects_the_legacy_alias_too(self):
+        root = self._project_with('python3 "/somewhere/bin/pretooluse-guard.py"')
+        self.doctor.check_project(root)
+        self.assertEqual(self.doctor._warns, [])
+
+    def test_genuinely_unwired_project_still_warns(self):
+        root = self._project_with('python3 "/somewhere/bin/unrelated-tool.py"')
+        self.doctor.check_project(root)
+        self.assertEqual(len(self.doctor._warns), 1)
+        self.assertNotIn("install.sh", self.doctor._warns[0],
+                         "remedy names a file that does not exist in this repo")
+        self.assertIn("install.py", self.doctor._warns[0])
+
+
 if __name__ == "__main__":
     unittest.main(verbosity=2)
