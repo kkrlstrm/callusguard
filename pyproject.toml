@@ -4,16 +4,13 @@ build-backend = "hatchling.build"
 
 [project]
 name = "callusguard"
-version = "0.5.0"
-description = "Record what your coding agent did, derive guards from it, enforce them, and verify each run stayed in scope. Claude Code and OpenAI Codex."
+version = "0.6.0"
+description = "Record what your coding agents did, learn from shared execution history, derive and enforce guards, and verify each run stayed in scope."
 readme = "README.md"
 requires-python = ">=3.9"
 license = { text = "Apache-2.0" }
 authors = [{ name = "Kai Karlstrom" }]
 keywords = ["claude-code", "codex", "ai-agents", "guardrails", "observability", "telemetry"]
-# Beta, not Production/Stable, on purpose: the README states that the scope half has
-# not yet run unattended against a real job. The classifier should not claim more than
-# the README does.
 classifiers = [
     "Development Status :: 4 - Beta",
     "Intended Audience :: Developers",
@@ -31,19 +28,12 @@ classifiers = [
 ]
 
 # THE DEPENDENCY WALL.
-#
-# Empty, and it stays empty. `callusguard.core`, `callusguard.guard` and
-# `callusguard.wroteonly` run synchronously inside every tool call; "no dependencies,
-# no network, no model calls" is what makes that defensible and what lets someone
-# audit the enforcement path in an afternoon.
-#
-# tests/test_dependency_wall.py enforces this by importing the enforcement layer
-# under `python -S` (site-packages unreachable). Do not add anything here.
+# Empty, and it stays empty. Enforcement and the offline learning data model are
+# stdlib-only. Model access is explicit through a provider command and never imported
+# into the synchronous tool-call path.
 dependencies = []
 
 [project.optional-dependencies]
-# Everything third-party lives behind this extra. The telemetry layer is a server
-# and a batch ingester — out of band, never on the hot path.
 telemetry = [
     "fastapi>=0.115",
     "uvicorn[standard]>=0.32",
@@ -55,7 +45,6 @@ dev = [
 ]
 
 [project.scripts]
-# The enforcement CLIs need no extras.
 callus = "callusguard.cli:main"
 wroteonly = "callusguard.wroteonly.cli:main"
 
