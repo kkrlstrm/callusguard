@@ -1,24 +1,16 @@
-"""callusguard — record what your agent did, derive guards from it, enforce, verify.
+"""callusguard — record what your agent did, learn from it, enforce, verify.
 
-A closed loop for agentic coding, in four parts that were previously five repos:
+A closed loop for agentic coding:
 
-    telemetry   record tool calls (allowlisted on Claude Code; rollout
-                files on Codex)
+    telemetry   record execution traces
     derive      mine recurring failures into candidate rules
-    guard       enforce at the tool boundary, four graded outcomes
+    learn       persist cross-session knowledge and distill reviewable interventions
+    guard       enforce at the tool boundary
     wroteonly   verify the run stayed in scope
-    lifecycle   prune the rules that stopped earning their place
+    lifecycle   prune rules that stopped earning their place
 
-Claude Code and the OpenAI Codex CLI are both first-class hosts throughout.
-
-THE DEPENDENCY WALL
-    `guard`, `wroteonly` and `core` are stdlib-only and always will be — they run
-    synchronously inside every tool call, and "no dependencies, no network, no model
-    calls" is what makes that defensible. Every third-party dependency lives behind
-    `callusguard.telemetry`, which is an optional extra. A CI job enforces the split.
+The learning plane is offline and never auto-activates an intervention. The
+synchronous enforcement path remains dependency-free, network-free, and model-free.
 """
 
-__version__ = "0.5.0"
-
-#: Bumped from agent-guard's 0.2.0 — the audit records a `version`, and it must keep
-#: moving forward across the merge so a chain spanning the change is still ordered.
+__version__ = "0.6.0"

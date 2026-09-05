@@ -4,7 +4,8 @@ on: [push, pull_request]
 jobs:
   enforcement:
     # The hot path, with NOTHING installed. If this job ever needs a pip install,
-    # the dependency wall has been breached.
+    # the dependency wall has been breached. The offline learning layer is also
+    # stdlib-only, so its unit tests run here without weakening that guarantee.
     runs-on: ubuntu-latest
     strategy:
       matrix:
@@ -14,10 +15,11 @@ jobs:
       - uses: actions/setup-python@v5
         with:
           python-version: ${{ matrix.python }}
-      - name: guard + wroteonly + dependency wall (stdlib only, no install step)
+      - name: guard + wroteonly + learning + dependency wall (stdlib only, no install step)
         run: |
           python -m unittest discover -s tests/guard -p 'test_*.py'
           python -m unittest discover -s tests/wroteonly -p 'test_*.py'
+          python -m unittest tests.test_learning
           python -m unittest tests.test_dependency_wall
           python -m unittest tests.test_cli_coverage
       - name: the demo must actually run
