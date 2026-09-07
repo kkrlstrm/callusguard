@@ -1,45 +1,71 @@
 # callusguard
 
-**Guardrails that earn their place.**
+## Give your coding agents scar tissue
 
-callusguard turns repeated Claude Code and Codex failures into reviewed controls,
-enforces them where the agent acts, and verifies what the run actually changed.
+Agents make mistakes. Then they start a new session and make them again.
 
-A static policy encodes what you *feared*. callusguard encodes what your agents
-actually taught you — and proves whether a given run stayed inside the deal.
+callusguard turns repeated Claude Code and Codex failures into **reviewed operational guardrails** — learned from what your agents actually did, enforced where they act, and removed when they stop being useful.
+
+```mermaid
+flowchart LR
+    Work["Agent works"] --> Failure["Failure"]
+    Failure --> History["Execution history"]
+    History --> Pattern{"Keeps happening?"}
+
+    Pattern -->|No| Work
+    Pattern -->|Yes| Review["Human reviews evidence"]
+    Review --> Guard["Guardrail"]
+
+    Guard --> Work
+    Work --> Verify["Did it help?"]
+
+    Verify -->|Still needed| Guard
+    Verify -->|Problem gone| Prune["Prune it"]
+```
+
+> **Static guardrails encode what you fear might happen. callusguard learns where your agents actually get hurt.**
+
+It does not let an LLM invent its own policy.
+
+Execution history identifies recurring failures and allocates human attention to the ones worth fixing. Every candidate begins monitor-only. Evidence limits how strongly it may be enforced. A human decides what the actual guard should be.
+
+Then callusguard closes the loop:
+
+**observe → find recurring failures → review → guard → measure → prune**
+
+The result is a small set of controls backed by actual operating history instead of an ever-growing pile of speculative rules.
 
 ---
 
-## What static guardrails leave unfinished: the lifecycle
+## Why this exists
 
-Most guardrails stop at policy. Every individual piece below exists somewhere —
-recording, blocking, scope checks. What is rarely joined up is what happens to a
-rule **over its life**.
+Most agent guardrail systems start with the same question:
 
-```
-  a failure happens          →  recorded, with its exit code and error
-  it keeps happening         →  graded against how often it was TRIED, not just counted
-  the rate earns a tier      →  proposed as a rule, monitor-only, NOT armed
-  you review the evidence    →  promoted — no further than that tier allows
-  the workflow gets fixed    →  the rule stops firing
-  30 days quiet              →  flagged for pruning. deleting it is the tool working
-```
+**What should the agent be forbidden from doing?**
 
-That is `record → derive → guard → verify → prune`, and the last step is the one
-that makes the rest trustworthy. **A rule library that only grows is one nobody
-trusts** — every stale rule is latency on every tool call and noise in every review.
+That works for known security boundaries. It works much less well for the smaller operational mistakes that emerge only after agents have done real work:
 
-### The denominator
+- repeatedly invoking a CLI without a required flag;
+- retrying a dead endpoint instead of switching strategies;
+- using a database command that cannot succeed in the current environment;
+- falling into polling loops;
+- touching files outside the work the agent said it would perform.
 
-A failure count on its own cannot tell a broken command from a busy one. Three
-failures out of three attempts and three out of three hundred are the same number
-and opposite facts, and every threshold in this loop used to run on the first
-number alone.
+You usually do not know these rules before deployment.
 
-So each cluster is now graded against how many times it was actually tried — the
-successes were always in the telemetry, they were simply never queried:
+**Your agents teach them to you.**
 
-| tier | rate, over ≥5 attempts | may be armed as far as |
+callusguard records that experience and turns the useful parts into durable controls.
+
+### Not every failure deserves a rule
+
+A busy command can fail three times because it ran 300 times. Another can fail three times because it ran three times.
+
+Those are opposite facts.
+
+callusguard grades recurring failures against their **attempt rate**, not raw counts, and limits enforcement accordingly:
+
+| tier | rate, over ≥5 attempts | strongest allowed response |
 |---|---|---|
 | `deterministic` | ≥ 95% — never really worked | `block` |
 | `reproducible` | ≥ 50% — fails most times | `deny` |
@@ -47,56 +73,78 @@ successes were always in the telemetry, they were simply never queried:
 | `anecdotal` | too few attempts, at any rate | **not proposed at all** |
 | `unknown` | no denominator available | `nudge` |
 
-The ceiling is enforced, not advisory: `callus guard check` refuses a ruleset whose
-action outran its evidence, so a `block` promoted from a coin-flip fails review
-instead of shipping. `anecdotal` is what replaces the old rule of thumb that three
-failures earn a guard — and withheld clusters are always reported, so "nothing to
-propose" can never hide "eight things too thin to grade."
+Every derived rule starts as **monitor-only**.
 
-The same distinction governs promotion. A monitor rule used to graduate on how many
-times it *fired*, but a pattern matching fifty commands that all succeeded is busy,
-not broken — so `guard prune` now promotes on the failure rate, not the popularity.
+The ceiling is enforced, not advisory: `callus guard check` refuses a ruleset whose action outran its evidence. A `block` promoted from a coin-flip fails review instead of shipping.
 
-One caveat, stated wherever a tier is displayed: this is an **observational** rate
-over the traffic that happened to run, not an experimental one. Nothing here re-ran
-anything under controlled conditions. Read a tier as a prior, not a proof.
+These rates are observational, not experimental. They describe what happened in real traffic; they do not prove causality. Read the tier as a prior, not a verdict.
 
-### One incident, end to end
+## The part most guardrail systems miss
 
-```console
-$ callus derive --from-log tool_calls.jsonl --out candidates.rules.json
-wrote 1 candidate rule(s) -> candidates.rules.json
-# derived-bash-psql-9c1c3e  action: monitor
-# "DRAFT — recurring Bash failure (3x in 7d): psql: error: connection to server..."
+Rules can become wrong too.
+
+A workflow gets fixed. A tool changes. An instruction becomes obsolete. A guard that once helped starts steering the agent toward a failure of its own.
+
+So removal is part of the lifecycle:
+
+```text
+failure
+  ↓
+recurrence
+  ↓
+candidate
+  ↓
+human-reviewed guard
+  ↓
+future behaviour
+  ↓
+still useful? ── yes ──► keep
+      │
+      no
+      ↓
+    prune
 ```
 
-It lands as `monitor`. It does not block anything. You read it, decide it is real,
-promote it to `block` — and now:
+**A rule library that only grows eventually becomes another source of failure.**
 
-```console
-$ # the agent tries it again
-BLOCKED by agent-guard: Bare psql keeps failing here — pass a DSN.
-$ echo $?
-2
-```
+callusguard expects successful rules to make themselves obsolete.
 
-Six weeks later, after someone fixes the connection string for good:
+## This has happened in production
 
-```console
-$ callus guard prune
-  ✂ PRUNE (1)
-      derived-bash-psql-9c1c3e   never fired in the last 30 days — either the failure
-                                 was engineered away, or the pattern never matched
-  1 rule(s) have stopped earning their place.
-  Deleting them is the tool working, not rotting.
-```
+From a cc-logger database over **2026-05-13 → 2026-08-18 (97 days)**:
 
-### And the scope half
+- **3,974 sessions**
+- **134,068 tool calls**
+- **6,012 failures**
+- **136 candidate rules proposed** across 14 weekly windows
+- **12 promoted into the live ruleset**
+- **9% promotion rate**
 
-The agent declares what it intends to touch. Afterwards, the actual write set is
-diffed against that declaration, and the project's own checks run with
-**pre-existing failures subtracted** — so a lint error that was already there can
-never mask the one this run introduced.
+Enforcement over the same period produced **1,920 verdicts — 1,295 nudges, 624 monitor-only allows, 1 deny, 0 blocks.**
+
+Only 9% of proposed rules were promoted. That is intentional.
+
+Derivation is not an autonomous policy generator. **It is a filter for human attention.**
+
+Some promoted guards materially reduced recurring failures. Some changed behaviour without improving the raw failure rate. One did effectively nothing. Another actively made things worse because its nudge recommended an invalid flag.
+
+callusguard surfaced those failures too.
+
+That is the point of the loop: **the guardrails themselves have to earn trust.**
+
+## Two things callusguard protects
+
+### 1. Repeated operational mistakes
+
+Before a tool executes, the guard evaluates reviewed rules and can:
+
+`monitor → nudge → deny → block`
+
+The enforcement path has **zero dependencies, no network, and no model calls**. It is deliberately small enough to run synchronously on every tool call.
+
+### 2. Work escaping its declared scope
+
+An agent declares what it intends to modify. Afterwards, callusguard compares that declaration with the actual write set and runs project checks against a per-run baseline.
 
 ```console
 $ callus scope verify --run-id library-2026-08-14
@@ -107,13 +155,17 @@ $ callus scope verify --run-id library-2026-08-14
   Declared: context/reference-library/*.md
 ```
 
-That baseline is captured **per invocation and never committed**, which is what lets
-it catch a break in a file the agent never opened.
+A pre-existing lint or test failure cannot hide a new one introduced by the agent.
 
-**Status, plainly:** the guard half below has 97 days of production evidence. The
-scope half has none — it is wired, tested, and demonstrated, but it has not yet run
-unattended against a real job. Do not read the numbers in the next section as
-covering it.
+These are complementary controls:
+
+**Did the agent repeat a mistake we already learned from?**
+
+and
+
+**Did this run do something it never said it would do?**
+
+**Status, plainly:** the guard half below has 97 days of production evidence. The scope half has none — it is wired, tested, and demonstrated, but it has not yet run unattended against a real job. Do not read the production numbers as covering it.
 
 ---
 
